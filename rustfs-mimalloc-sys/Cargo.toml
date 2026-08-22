@@ -14,6 +14,15 @@ categories.workspace = true
 readme = "README.md"
 links = "mimalloc"
 build = "build.rs"
+include = [
+    "Cargo.toml",
+    "README.md",
+    "build.rs",
+    "src/**",
+    "c_src/mimalloc/LICENSE",
+    "c_src/mimalloc/include/**",
+    "c_src/mimalloc/src/**",
+]
 
 [features]
 default = []

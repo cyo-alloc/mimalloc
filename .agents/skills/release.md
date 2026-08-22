@@ -16,6 +16,7 @@ When release behavior, supported Rust versions, feature flags, or publish steps 
 | `rustfs-mimalloc/Cargo.toml` | Package metadata, inherited fields, features, or dev-dependencies change |
 | `rustfs-mimalloc-sys/Cargo.toml` | Package metadata, inherited fields, build features, or build dependencies change |
 | `Cargo.lock` | Cargo updates package versions or dependency resolution |
+| `.gitmodules` | mimalloc submodule URL or path changes |
 | `CHANGELOG.md` | User-visible release notes or release date changes |
 | `README.md` | Install snippet, feature table, MSRV, platform support, or comparison table changes |
 | `.github/workflows/ci.yml` | MSRV, feature matrix, musl setup, lint, docs, or bench gates change |
@@ -33,6 +34,8 @@ Start with a clean, current tree:
 ```bash
 git status --short --branch
 git fetch origin --tags
+git submodule update --init --recursive
+git submodule status --recursive
 git log --oneline --decorate -8
 git tag --sort=-v:refname | head -8
 ```
@@ -131,6 +134,7 @@ Stage only the files that belong to the release:
 
 ```bash
 git add Cargo.toml Cargo.lock CHANGELOG.md README.md
+git add .gitmodules
 git add rustfs-mimalloc/Cargo.toml rustfs-mimalloc-sys/Cargo.toml
 git add .github/workflows/ci.yml .github/workflows/release.yml
 git add .agents/skills/release.md CLAUDE.md

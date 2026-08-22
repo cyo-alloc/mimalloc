@@ -10,6 +10,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
+        with:
+          submodules: recursive
       - name: Run audit check
         uses: rustsec/audit-check@v2
         with:

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Ensure GitHub workflows check out the mimalloc submodule recursively so CI builds can find `c_src/mimalloc/src/static.c`.
+
 ## [0.5.0] - 2026-08-22
 
 ### Changed
