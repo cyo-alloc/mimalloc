@@ -1,24 +1,27 @@
 # rustfs-mimalloc
 
-High-performance [mimalloc](https://github.com/microsoft/mimalloc) V3 global allocator for Rust.
-
 [![Crates.io](https://img.shields.io/crates/v/rustfs-mimalloc.svg)](https://crates.io/crates/rustfs-mimalloc)
 [![Documentation](https://docs.rs/rustfs-mimalloc/badge.svg)](https://docs.rs/rustfs-mimalloc)
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![CI](https://github.com/houseme/rustfs-mimalloc/actions/workflows/ci.yml/badge.svg)](https://github.com/houseme/rustfs-mimalloc/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![MSRV](https://img.shields.io/badge/MSRV-1.85.0-orange.svg)](#minimum-supported-rust-version)
+
+High-performance [mimalloc](https://github.com/microsoft/mimalloc) V3 global allocator for Rust.
 
 ## Overview
 
-`rustfs-mimalloc` provides safe, ergonomic Rust bindings to Microsoft's mimalloc V3 memory allocator (v3.5.0). It is designed as a drop-in replacement for the system allocator with excellent multi-threaded performance.
+`rustfs-mimalloc` provides safe, ergonomic Rust bindings to Microsoft's mimalloc V3 memory allocator (v3.5.0). Drop-in replacement for the system allocator with excellent multi-threaded performance.
 
-### Key Features
+### Why this crate?
 
-- **V3 only** — exclusively targets mimalloc V3, avoiding multi-version complexity
-- **Always aligned** — uses `mi_malloc_aligned` for all allocations, preventing alignment bugs
-- **Cross-platform** — supports Linux, macOS, Windows, ARM, RISC-V, and musl
+- **V3 only** — exclusively targets mimalloc V3, no multi-version complexity
+- **Always aligned** — uses `mi_malloc_aligned` for all allocations, preventing [alignment bugs](https://github.com/purpleprotocol/mimalloc_rust/issues/87)
+- **Zero indirection** — `#[inline(always)]` hot path, no intermediate function calls
+- **Cross-platform** — Linux, macOS, Windows, ARM, RISC-V, musl
 - **Comprehensive API** — stats, options, heap/arena management
-- **Production-ready** — addresses [known issues](https://github.com/purpleprotocol/mimalloc_rust/issues) from the reference implementation
+- **Issue-informed** — addresses [40+ known issues](https://github.com/purpleprotocol/mimalloc_rust/issues) from the reference implementation
 
-## Usage
+## Quick Start
 
 ```toml
 [dependencies]
@@ -32,7 +35,6 @@ use rustfs_mimalloc::MiMalloc;
 static GLOBAL: MiMalloc = MiMalloc;
 
 fn main() {
-    // All allocations now use mimalloc
     let v = vec![1, 2, 3, 4, 5];
     println!("{:?}", v);
 }
@@ -40,41 +42,72 @@ fn main() {
 
 ## Features
 
-| Feature | Description |
-|---------|-------------|
-| `secure` | Enable heap encryption (MI_SECURE=4) |
-| `debug` | Enable mimalloc debug checks |
-| `debug_in_debug` | Auto-enable debug mode in debug builds |
-| `override` | Override system malloc/free |
-| `local_dynamic_tls` | Use local-dynamic TLS model |
-| `no_thp` | Disable Transparent Huge Pages |
+| Feature | Default | Description |
+|---------|:-------:|-------------|
+| `secure` | | Heap allocation encryption (MI_SECURE=4) |
+| `debug` | | mimalloc debug checks |
+| `debug_in_debug` | | Auto-enable `debug` in Cargo debug builds |
+| `override` | | Override system `malloc`/`free` |
+| `local_dynamic_tls` | | Use local-dynamic TLS model (fixes polars compatibility) |
+| `win_direct_tls` | | Enable the Windows direct TLS fast path when direct TLS slots are known to be available |
+| `no_thp` | | Disable Transparent Huge Pages on Linux/Android |
 
-Stats, options, version, heap, and arena APIs are always available without a feature flag.
+All stats, options, heap, and arena APIs are available without any feature flag.
 
-### Profile and Stats API
+## API
+
+### Global Allocator
+
+```rust
+use rustfs_mimalloc::MiMalloc;
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
+```
+
+Implements `GlobalAlloc` with `alloc`, `alloc_zeroed`, `dealloc`, `realloc` — all using `mi_malloc_aligned` for guaranteed alignment.
+
+### Statistics & Diagnostics
 
 ```rust
 use rustfs_mimalloc::MiMalloc;
 use rustfs_mimalloc_sys::mi_option_t;
 
-// Get mimalloc version
-let version = MiMalloc::version(); // 30500 for V3.5.0
+// Version: 30500 = V3.5.0
+let version = MiMalloc::version();
 
-// Get allocation statistics as JSON
-let stats = MiMalloc::stats_json();
+// Stats as JSON
+let json = MiMalloc::stats_json();
 
-// Get allocation statistics in mimalloc's text format
-let profile = MiMalloc::stats_print();
+// Stats in human-readable text
+let text = MiMalloc::stats_print();
 
-// Get process memory information in mimalloc's text format
-let process_profile = MiMalloc::process_info_print();
-
-// Configure options
-MiMalloc::option_set(mi_option_t::mi_option_purge_delay, 0); // Immediate OS memory return
-
-// Get process memory info
+// Process memory info (struct)
 let info = MiMalloc::process_info();
 println!("Peak RSS: {} bytes", info.peak_rss);
+
+// Process memory info (text)
+let text = MiMalloc::process_info_print();
+
+// Reset stats
+MiMalloc::stats_reset();
+```
+
+### Runtime Options
+
+```rust
+use rustfs_mimalloc::MiMalloc;
+use rustfs_mimalloc_sys::mi_option_t;
+
+// Return memory to OS immediately (default delay: 10ms)
+MiMalloc::option_set(mi_option_t::mi_option_purge_delay, 0);
+
+// Read an option
+let delay = MiMalloc::option_get(mi_option_t::mi_option_purge_delay);
+
+// Toggle
+MiMalloc::option_enable(mi_option_t::mi_option_show_errors);
+MiMalloc::option_disable(mi_option_t::mi_option_show_errors);
 ```
 
 ### Heap Management
@@ -85,15 +118,28 @@ use rustfs_mimalloc::heap::Heap;
 // Create a custom heap
 let heap = Heap::new().expect("failed to create heap");
 
-// Allocate from the heap
+// Allocate from it
 unsafe {
     let ptr = heap.malloc(128);
-    // ... use memory ...
+    core::ptr::write_bytes(ptr, 0xAB, 128);
     rustfs_mimalloc_sys::mi_free(ptr as *mut core::ffi::c_void);
 }
 
-// Delete heap (moves blocks to main heap)
+// Delete heap (moves live blocks to main heap)
 heap.delete();
+```
+
+### Arena Management
+
+```rust
+use rustfs_mimalloc::heap;
+
+// Reserve a memory arena
+let arena = heap::reserve_os_memory(1024 * 1024 * 64, true, true, true)
+    .expect("failed to reserve arena");
+
+// Create a heap in the arena
+let heap = heap::Heap::new_in_arena(arena).expect("failed to create heap");
 ```
 
 ## Comparison with `mimalloc` crate
@@ -101,40 +147,52 @@ heap.delete();
 | Aspect | `rustfs-mimalloc` | `mimalloc` crate |
 |--------|-------------------|-------------------|
 | mimalloc version | V3 only (v3.5.0) | V2/V3 (configurable) |
-| Alignment handling | Always aligned | Conditional |
-| TLS model | Configurable | Forced initial-exec |
-| Extended API | Comprehensive | Partial |
-| Known issue fixes | All addressed | Various open issues |
+| Alignment | Always aligned | Conditional |
+| TLS model | Configurable | Forced `initial-exec` |
+| Stats API | JSON + text + struct | JSON only |
+| Options API | Full get/set/enable/disable | Partial |
+| Heap API | Full (create/delete/destroy/alloc) | Basic |
+| Arena API | Full (reserve/manage) | Basic |
+| MSRV | 1.85.0 | 1.46.0 |
 
 ## Design Decisions
 
 ### V3 Only
-This crate exclusively targets mimalloc V3. The V3 branch includes significant improvements:
-- Metadata separated from heap objects
-- Better arena management
-- Guard page support
-- Improved multi-threaded performance
+
+This crate exclusively targets mimalloc V3. Key improvements over V2:
+
+- Metadata separated from heap objects (better cache behavior)
+- Improved arena management with exclusive arenas
+- Guard page support for debugging
+- Theap (thread-local heap) API for fine-grained control
+- Better multi-threaded performance
 
 ### Always Use Aligned Allocation
-We always call `mi_malloc_aligned` internally. Previous implementations tried to skip aligned calls for small alignments, which caused [alignment bugs](https://github.com/purpleprotocol/mimalloc_rust/issues/87) and [crashes](https://github.com/purpleprotocol/mimalloc_rust/issues/128).
+
+All `GlobalAlloc` methods call `mi_malloc_aligned` / `mi_realloc_aligned` internally. Previous implementations tried to skip aligned calls for small alignments, causing [alignment bugs](https://github.com/purpleprotocol/mimalloc_rust/issues/87) and [crashes](https://github.com/purpleprotocol/mimalloc_rust/issues/128). The overhead of always using aligned allocation is negligible.
 
 ### No TLS Model Override by Default
-The `-ftls-model=initial-exec` flag was [forcing compatibility issues](https://github.com/purpleprotocol/mimalloc_rust/issues/138) with some projects (e.g., polars). Users can opt-in via the `local_dynamic_tls` feature.
+
+The `-ftls-model=initial-exec` flag [breaks compatibility](https://github.com/purpleprotocol/mimalloc_rust/issues/138) with some projects (e.g., polars). Use the `local_dynamic_tls` feature to opt-in.
 
 ## Platform Support
 
-- Linux (x86_64, aarch64, arm, riscv64)
-- macOS (x86_64, aarch64)
-- Windows (x86_64, aarch64)
-- FreeBSD
-- musl targets
+| OS | Architecture | Status |
+|----|-------------|--------|
+| Linux | x86_64, aarch64, arm, riscv64 | ✅ Tested in CI |
+| macOS | x86_64, aarch64 | ✅ Tested in CI |
+| Windows | x86_64, aarch64 | ✅ Tested in CI |
+| FreeBSD | x86_64 | ✅ Should work |
+| Linux (musl) | x86_64 | ✅ Tested in CI |
 
-## MSRV
+## Minimum Supported Rust Version
 
-The minimum supported Rust version is 1.70.0.
+**Rust 1.85.0** (2025-02-20). This crate uses `edition = "2024"` which requires Rust 1.85.0+.
+
+The MSRV is tested in CI and will not change without a minor version bump.
 
 ## License
 
-Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE).
 
-The mimalloc C library is licensed under the MIT License. See [c_src/mimalloc/LICENSE](rustfs-mimalloc-sys/c_src/mimalloc/LICENSE) for details.
+The mimalloc C library is licensed under the MIT License. See [rustfs-mimalloc-sys/c_src/mimalloc/LICENSE](rustfs-mimalloc-sys/c_src/mimalloc/LICENSE).
