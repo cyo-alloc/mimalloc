@@ -16,6 +16,7 @@ fn main() {
     println!("cargo:rerun-if-env-changed=CARGO_FEATURE_DEBUG_IN_DEBUG");
     println!("cargo:rerun-if-env-changed=CARGO_FEATURE_OVERRIDE");
     println!("cargo:rerun-if-env-changed=CARGO_FEATURE_LOCAL_DYNAMIC_TLS");
+    println!("cargo:rerun-if-env-changed=CARGO_FEATURE_WIN_DIRECT_TLS");
     println!("cargo:rerun-if-env-changed=CARGO_FEATURE_NO_THP");
 
     let mut build = cc::Build::new();
@@ -55,6 +56,10 @@ fn main() {
         build.flag_if_supported("-ftls-model=local-dynamic");
     } else if target.contains("apple") || target.contains("linux") || target.contains("freebsd") {
         build.flag_if_supported("-ftls-model=initial-exec");
+    }
+
+    if target.contains("windows") && env::var_os("CARGO_FEATURE_WIN_DIRECT_TLS").is_some() {
+        build.define("MI_WIN_DIRECT_TLS", "1");
     }
 
     // Disable THP on Linux/Android if requested

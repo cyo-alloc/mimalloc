@@ -24,6 +24,8 @@ override = []
 # Use local-dynamic TLS model instead of initial-exec
 # Fixes compatibility issues with some projects (e.g., polars)
 local_dynamic_tls = []
+# Optimize Windows TLS access when direct TLS slots are known to be available
+win_direct_tls = []
 # Disable Transparent Huge Pages on Linux/Android
 no_thp = []
 

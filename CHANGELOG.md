@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 - Reduced the feature surface to behavior-changing options only; removed the no-op `extended` feature and fine-grained `secure_level_1..5` aliases.
 - Removed the unstable `nightly_allocator_api` feature so the crate remains fully verifiable on stable Rust.
 - Kept `secure` as the single heap-encryption feature and mapped it directly to mimalloc's upstream default `MI_SECURE=4`.
+- Added `win_direct_tls` as a Windows-only v3 performance opt-in for deployments that can guarantee direct TLS slot availability.
 - Consolidated profile output collection into a shared internal FFI helper with preallocated callback storage.
 - Changed low-level FFI aliases to use `core::ffi` platform C types.
 - Distinguished owned heap handles from borrowed heap handles so `Heap::main()` and `Heap::heap_of()` do not delete heaps they do not own.
