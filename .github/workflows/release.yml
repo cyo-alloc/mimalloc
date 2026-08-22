@@ -108,6 +108,12 @@ jobs:
       - name: Test (secure)
         run: cargo test --features secure
 
+      - name: Build (stable feature set)
+        run: cargo build --features secure,debug,win_direct_tls
+
+      - name: Test (stable feature set)
+        run: cargo test --features secure,debug,win_direct_tls
+
   # ── Lint gate ──────────────────────────────────────────────────────────────
 
   lint:
@@ -124,7 +130,7 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Clippy
-        run: cargo clippy --workspace --features secure -- -D warnings
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
   # ── Publish to crates.io ──────────────────────────────────────────────────
 

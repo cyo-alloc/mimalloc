@@ -1,96 +1,212 @@
 # Release Skill
 
-Publish a new version of rustfs-mimalloc to crates.io and create a GitHub Release.
+Publish a new version of `rustfs-mimalloc` and `rustfs-mimalloc-sys` to crates.io, then create the GitHub Release.
 
 ## Trigger
 
-Activate when the user says "release", "publish", "bump version", "tag", or similar.
+Use this skill when the user asks to release, publish, bump a version, create a release tag, run a release dry run, or inspect release readiness.
+
+## Synchronized Files
+
+When release behavior, supported Rust versions, feature flags, or publish steps change, check these files together:
+
+| File | Update When |
+|------|-------------|
+| `Cargo.toml` | Release version changes, MSRV changes, or workspace dependency versions change |
+| `rustfs-mimalloc/Cargo.toml` | Package metadata, inherited fields, features, or dev-dependencies change |
+| `rustfs-mimalloc-sys/Cargo.toml` | Package metadata, inherited fields, build features, or build dependencies change |
+| `Cargo.lock` | Cargo updates package versions or dependency resolution |
+| `CHANGELOG.md` | User-visible release notes or release date changes |
+| `README.md` | Install snippet, feature table, MSRV, platform support, or comparison table changes |
+| `.github/workflows/ci.yml` | MSRV, feature matrix, musl setup, lint, docs, or bench gates change |
+| `.github/workflows/release.yml` | Release gates, publish order, dry-run behavior, or release-note generation changes |
+| `.agents/skills/release.md` | Any release process rule changes |
+| `CLAUDE.md` | Project guidance, MSRV, feature list, or release flow changes |
+| `docs/release-checklist.md` | Local release checklist mirror, if present; it is git ignored in this repo |
+
+Do not use `git add -A` for releases. Stage explicit files so ignored/local notes and unrelated work do not leak into the release commit.
 
 ## Pre-check
 
-```bash
-git status --short
-git tag --sort=-v:refname | head -5
-```
-
-## Workflow
-
-### 1. Determine Version
-
-Ask the user for the target version (e.g. `0.1.0`). If not specified, increment the patch version of the latest tag.
-
-### 2. Version Consistency Check
-
-Verify that all three Cargo.toml files have matching versions:
+Start with a clean, current tree:
 
 ```bash
-grep '^version' Cargo.toml rustfs-mimalloc-sys/Cargo.toml rustfs-mimalloc/Cargo.toml
+git status --short --branch
+git fetch origin --tags
+git log --oneline --decorate -8
+git tag --sort=-v:refname | head -8
 ```
 
-If inconsistent, use Edit to update all to the target version. Also update the sys crate dependency version in `rustfs-mimalloc/Cargo.toml`:
+If the worktree is dirty, inspect the diff and separate unrelated changes before continuing.
+
+## Version Model
+
+The two crates inherit their package version from the workspace:
 
 ```toml
-rustfs-mimalloc-sys = { path = "../rustfs-mimalloc-sys", version = "<NEW_VERSION>" }
+# Cargo.toml
+[workspace.package]
+version = "<VERSION>"
+rust-version = "1.96.0"
 ```
 
-### 3. Local Validation
+The wrapper's registry dependency requirement for the sys crate is also in the workspace root:
 
-Run these checks in order. Stop and report on first failure:
+```toml
+# Cargo.toml
+[workspace.dependencies]
+rustfs-mimalloc-sys = { path = "rustfs-mimalloc-sys", version = "<VERSION>" }
+```
+
+For a release version bump, update:
+
+- `Cargo.toml`: `[workspace.package].version`
+- `Cargo.toml`: `workspace.dependencies.rustfs-mimalloc.version`
+- `Cargo.toml`: `workspace.dependencies.rustfs-mimalloc-sys.version`
+- `CHANGELOG.md`: move relevant `Unreleased` entries under `## [<VERSION>] - <YYYY-MM-DD>`
+- `README.md`: dependency snippet if the recommended version changes
+- `Cargo.lock`: only if Cargo changes it after validation
+
+Do not add direct `version = "..."` fields to the member crate manifests unless the workspace inheritance model changes.
+
+## Version Consistency Check
+
+Use `cargo metadata`; grep-based checks are wrong for workspace-inherited versions.
 
 ```bash
-cargo fmt --all -- --check
-cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo metadata --no-deps --format-version 1 > /tmp/rustfs-mimalloc-metadata.json
+python3 - /tmp/rustfs-mimalloc-metadata.json <VERSION> <<'PY'
+import json
+import sys
+
+metadata_path, expected = sys.argv[1], sys.argv[2]
+with open(metadata_path, encoding="utf-8") as f:
+    metadata = json.load(f)
+
+versions = {
+    package["name"]: package["version"]
+    for package in metadata["packages"]
+    if package["name"] in {"rustfs-mimalloc", "rustfs-mimalloc-sys"}
+}
+
+missing = {"rustfs-mimalloc", "rustfs-mimalloc-sys"} - set(versions)
+if missing:
+    raise SystemExit(f"missing package metadata for: {', '.join(sorted(missing))}")
+
+mismatched = {name: version for name, version in versions.items() if version != expected}
+if mismatched:
+    details = ", ".join(f"{name}={version}" for name, version in sorted(mismatched.items()))
+    raise SystemExit(f"version mismatch; expected {expected}, got {details}")
+
+print(f"Version OK: {expected}")
+PY
+```
+
+## Local Validation
+
+Run these checks before tagging. Stop on the first failure and report the exact failing command.
+
+```bash
+cargo fmt --all --check
+cargo +1.96.0 check --workspace --all-targets
+cargo +1.96.0 test --workspace
+cargo test --workspace
 cargo test --workspace --features secure,debug,win_direct_tls
-cargo doc --no-deps
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo doc --workspace --no-deps
+cargo package -p rustfs-mimalloc-sys --allow-dirty
+cargo package -p rustfs-mimalloc --allow-dirty
 ```
 
-### 4. Commit Version Bump
+For musl validation, run this only when the host has a musl C compiler installed:
 
 ```bash
-git add -A
-git commit -m "release: v<VERSION>"
+cargo build --target x86_64-unknown-linux-musl --features secure
 ```
 
-### 5. Tag and Push
+On GitHub Actions, `ci.yml` installs `musl-tools` before the musl cross-build.
+
+## Commit
+
+Stage only the files that belong to the release:
+
+```bash
+git add Cargo.toml Cargo.lock CHANGELOG.md README.md
+git add rustfs-mimalloc/Cargo.toml rustfs-mimalloc-sys/Cargo.toml
+git add .github/workflows/ci.yml .github/workflows/release.yml
+git add .agents/skills/release.md CLAUDE.md
+```
+
+Only include a path if it actually changed.
+
+Commit with the required trailer:
+
+```bash
+git commit -m "chore(release): v<VERSION>" -m "Co-Authored-By: heihutu <heihutu@gmail.com>"
+```
+
+## Tag And Publish
+
+Create the tag only after local validation passes and the release commit is ready:
 
 ```bash
 git tag v<VERSION>
-git push origin main --tags
+git push origin main
+git push origin v<VERSION>
 ```
 
-After push, GitHub Actions automatically runs:
-- 3-platform test matrix (Linux / macOS / Windows)
-- Lint checks
-- Publish to crates.io (sys crate first, 30s delay, then wrapper)
-- Create GitHub Release with auto-generated changelog
+Pushing the tag triggers `.github/workflows/release.yml`.
 
-### 6. Confirm
+The release workflow publishes in this order:
 
-Tell the user:
-- CI has been triggered — view progress in Actions tab
-- crates.io: `https://crates.io/crates/rustfs-mimalloc/<VERSION>`
-- GitHub Release: `https://github.com/houseme/rustfs-mimalloc/releases/tag/v<VERSION>`
+1. `rustfs-mimalloc-sys`
+2. wait for crates.io index propagation
+3. `rustfs-mimalloc`
+4. GitHub Release
 
-## Manual Trigger (Alternative)
+## Dry Run
 
-To trigger a release for an existing tag, or with dry run:
+Use a dry run before the real publish when changing release infrastructure:
 
 ```bash
 gh workflow run release.yml -f version=<VERSION> -f dry_run=true
 ```
 
+Watch it with:
+
+```bash
+gh run list --workflow release.yml --limit 5
+gh run watch <RUN_ID>
+```
+
+## Confirmation
+
+After pushing a real release, report:
+
+- tag: `v<VERSION>`
+- release workflow run URL
+- crates.io sys crate URL: `https://crates.io/crates/rustfs-mimalloc-sys/<VERSION>`
+- crates.io wrapper crate URL: `https://crates.io/crates/rustfs-mimalloc/<VERSION>`
+- GitHub Release URL: `https://github.com/houseme/rustfs-mimalloc/releases/tag/v<VERSION>`
+- whether CI was awaited or intentionally not awaited
+
 ## Rollback
 
-If something goes wrong after publish:
+If the release is published but broken:
 
 ```bash
 cargo yank --vers <VERSION> -p rustfs-mimalloc
 cargo yank --vers <VERSION> -p rustfs-mimalloc-sys
 ```
 
+Yanking prevents new dependency resolution to that version, but it does not delete already downloaded crates.
+
+Delete or edit the GitHub Release manually if the release notes are wrong. Do not delete a pushed tag unless the user explicitly asks for that history change.
+
 ## Notes
 
-- Version follows SemVer: `MAJOR.MINOR.PATCH[-PRERELEASE]`
-- crates.io does not allow re-publishing the same version
-- Requires repository Secret `CARGO_REGISTRY_TOKEN`
-- Pre-release versions (containing `-`) are auto-tagged as pre-release on GitHub
+- Versions follow SemVer: `MAJOR.MINOR.PATCH[-PRERELEASE]`.
+- crates.io does not allow publishing the same package version twice.
+- The repository must have the `CARGO_REGISTRY_TOKEN` GitHub Actions secret.
+- Pre-release versions containing `-` are marked as prereleases on GitHub.
+- This crate is v3-only and performance-first. Do not reintroduce v2 or `nightly_allocator_api` release paths.
