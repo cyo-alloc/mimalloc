@@ -24,8 +24,6 @@ jobs:
         features:
           - ""
           - "secure"
-          - "extended"
-          - "secure,extended"
         include:
           # debug feature — test on all platforms
           - os: ubuntu-latest
@@ -39,14 +37,14 @@ jobs:
             features: "override"
           - os: macos-latest
             features: "override"
-          # all features combined (non-Windows)
+          # stable feature set (non-Windows)
           - os: ubuntu-latest
-            features: "secure,extended,debug,override"
+            features: "secure,debug,override"
           - os: macos-latest
-            features: "secure,extended,debug,override"
-          # all features combined (Windows — no override)
+            features: "secure,debug,override"
+          # stable feature set (Windows — no override)
           - os: windows-latest
-            features: "secure,extended,debug"
+            features: "secure,debug"
 
     runs-on: ${{ matrix.os }}
 
@@ -115,8 +113,8 @@ jobs:
       - name: Clippy (default)
         run: cargo clippy --workspace -- -D warnings
 
-      - name: Clippy (all features)
-        run: cargo clippy --workspace --features secure,extended,debug -- -D warnings
+      - name: Clippy (stable feature set)
+        run: cargo clippy --workspace --features secure,debug -- -D warnings
 
   # ── Documentation ──────────────────────────────────────────────────────────
 

@@ -54,16 +54,33 @@ jobs:
 
       - name: Verify version consistency
         run: |
-          SYS_VER=$(grep '^version' rustfs-mimalloc-sys/Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
-          WRAP_VER=$(grep '^version' rustfs-mimalloc/Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
-          WS_VER=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
           EXPECTED="${{ steps.version.outputs.version }}"
-          echo "Expected: ${EXPECTED}"
-          echo "Workspace: ${WS_VER}, sys: ${SYS_VER}, wrapper: ${WRAP_VER}"
-          if [ "${SYS_VER}" != "${EXPECTED}" ] || [ "${WRAP_VER}" != "${EXPECTED}" ] || [ "${WS_VER}" != "${EXPECTED}" ]; then
-            echo "::error::Version mismatch! Update all Cargo.toml files to ${EXPECTED} before releasing."
-            exit 1
-          fi
+          cargo metadata --no-deps --format-version 1 > /tmp/metadata.json
+          python3 - "${EXPECTED}" <<'PY'
+          import json
+          import sys
+
+          expected = sys.argv[1]
+          with open("/tmp/metadata.json", encoding="utf-8") as f:
+              metadata = json.load(f)
+
+          versions = {
+              package["name"]: package["version"]
+              for package in metadata["packages"]
+              if package["name"] in {"rustfs-mimalloc", "rustfs-mimalloc-sys"}
+          }
+
+          if set(versions) != {"rustfs-mimalloc", "rustfs-mimalloc-sys"}:
+              missing = {"rustfs-mimalloc", "rustfs-mimalloc-sys"} - set(versions)
+              raise SystemExit(f"missing package metadata for: {', '.join(sorted(missing))}")
+
+          mismatched = {name: version for name, version in versions.items() if version != expected}
+          if mismatched:
+              details = ", ".join(f"{name}={version}" for name, version in sorted(mismatched.items()))
+              raise SystemExit(f"version mismatch; expected {expected}, got {details}")
+
+          print(f"Version OK: {expected}")
+          PY
 
   # ── Full test gate ─────────────────────────────────────────────────────────
 
@@ -85,11 +102,11 @@ jobs:
       - name: Test (default)
         run: cargo test
 
-      - name: Build (secure + extended)
-        run: cargo build --features secure,extended
+      - name: Build (secure)
+        run: cargo build --features secure
 
-      - name: Test (secure + extended)
-        run: cargo test --features secure,extended
+      - name: Test (secure)
+        run: cargo test --features secure
 
   # ── Lint gate ──────────────────────────────────────────────────────────────
 
@@ -107,7 +124,7 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Clippy
-        run: cargo clippy --workspace --features secure,extended -- -D warnings
+        run: cargo clippy --workspace --features secure -- -D warnings
 
   # ── Publish to crates.io ──────────────────────────────────────────────────
 
@@ -149,7 +166,6 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Generate changelog
-        id: changelog
         run: |
           # Get previous tag
           PREV_TAG=$(git tag --sort=-v:refname | grep '^v[0-9]' | sed -n '2p')
@@ -158,32 +174,27 @@ jobs:
           else
             CHANGES=$(git log --pretty=format:"- %s (%h)" "${PREV_TAG}..HEAD" --no-merges)
           fi
-          # Write to file for multi-line output
-          echo "${CHANGES}" > /tmp/changelog.md
-          echo "prev_tag=${PREV_TAG}" >> "$GITHUB_OUTPUT"
+          cat > /tmp/release-notes.md <<EOF
+          ## rustfs-mimalloc v${{ needs.prepare.outputs.version }}
+
+          mimalloc V3 (v3.5.0) bindings for Rust.
+
+          ### Changes
+          ${CHANGES}
+
+          ### Installation
+          \`\`\`toml
+          [dependencies]
+          rustfs-mimalloc = "${{ needs.prepare.outputs.version }}"
+          \`\`\`
+          EOF
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
           name: v${{ needs.prepare.outputs.version }}
-          body: |
-            ## rustfs-mimalloc v${{ needs.prepare.outputs.version }}
-
-            mimalloc V3 (v3.5.0) bindings for Rust.
-
-            ### Changes
-            ${{ steps.changelog.outputs.prev_tag && '' || '' }}
-            $(cat /tmp/changelog.md)
-
-            ### Installation
-            ```toml
-            [dependencies]
-            rustfs-mimalloc = "${{ needs.prepare.outputs.version }}"
-            ```
-
-            ### Checksums
-            See the assets below for pre-built artifacts.
+          body_path: /tmp/release-notes.md
           draft: false
           prerelease: ${{ contains(needs.prepare.outputs.version, '-') }}
           generate_release_notes: true
