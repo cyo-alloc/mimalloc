@@ -4,7 +4,7 @@
 [![Documentation](https://docs.rs/rustfs-mimalloc/badge.svg)](https://docs.rs/rustfs-mimalloc)
 [![CI](https://github.com/houseme/rustfs-mimalloc/actions/workflows/ci.yml/badge.svg)](https://github.com/houseme/rustfs-mimalloc/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-[![MSRV](https://img.shields.io/badge/MSRV-1.85.0-orange.svg)](#minimum-supported-rust-version)
+[![MSRV](https://img.shields.io/badge/MSRV-1.96.0-orange.svg)](#minimum-supported-rust-version)
 
 High-performance [mimalloc](https://github.com/microsoft/mimalloc) V3 global allocator for Rust.
 
@@ -153,7 +153,7 @@ let heap = heap::Heap::new_in_arena(arena).expect("failed to create heap");
 | Options API | Full get/set/enable/disable | Partial |
 | Heap API | Full (create/delete/destroy/alloc) | Basic |
 | Arena API | Full (reserve/manage) | Basic |
-| MSRV | 1.85.0 | 1.46.0 |
+| MSRV | 1.96.0 | 1.46.0 |
 
 ## Design Decisions
 
@@ -187,7 +187,7 @@ The `-ftls-model=initial-exec` flag [breaks compatibility](https://github.com/pu
 
 ## Minimum Supported Rust Version
 
-**Rust 1.85.0** (2025-02-20). This crate uses `edition = "2024"` which requires Rust 1.85.0+.
+**Rust 1.96.0** (2026-05-28). This crate follows a rolling support window for the latest three stable Rust release trains. With Rust 1.98.0 as the current stable release, the supported window is 1.96.x through 1.98.x.
 
 The MSRV is tested in CI and will not change without a minor version bump.
 

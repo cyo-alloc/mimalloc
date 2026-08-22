@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Raised the MSRV to Rust 1.96.0, matching the rolling support window for the latest three stable Rust release trains.
 - Reduced the feature surface to behavior-changing options only; removed the no-op `extended` feature and fine-grained `secure_level_1..5` aliases.
 - Removed the unstable `nightly_allocator_api` feature so the crate remains fully verifiable on stable Rust.
 - Kept `secure` as the single heap-encryption feature and mapped it directly to mimalloc's upstream default `MI_SECURE=4`.

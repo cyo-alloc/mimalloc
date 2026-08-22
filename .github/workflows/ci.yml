@@ -76,20 +76,23 @@ jobs:
         with:
           targets: x86_64-unknown-linux-musl
 
+      - name: Install musl toolchain
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
       - name: Build (musl, static)
         run: cargo build --target x86_64-unknown-linux-musl --features secure
 
   # ── MSRV check ─────────────────────────────────────────────────────────────
 
   msrv:
-    name: MSRV (1.85.0)
+    name: MSRV (1.96.0)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.85.0"
+          toolchain: "1.96.0"
 
       - name: Build
         run: cargo build
