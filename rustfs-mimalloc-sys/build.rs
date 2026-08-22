@@ -1,0 +1,166 @@
+//! Build script for rustfs-mimalloc-sys.
+//!
+//! Compiles mimalloc V3 as a static library using the `cc` crate.
+//! Handles platform-specific flags, feature gates, and linker requirements.
+
+use std::env;
+
+fn main() {
+    let target = env::var("TARGET").unwrap_or_default();
+    let is_debug = env::var("PROFILE").as_deref() == Ok("debug");
+
+    // Tell Cargo to re-run if features change
+    println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-env-changed=CARGO_FEATURE_SECURE");
+    println!("cargo:rerun-if-env-changed=CARGO_FEATURE_DEBUG");
+    println!("cargo:rerun-if-env-changed=CARGO_FEATURE_DEBUG_IN_DEBUG");
+    println!("cargo:rerun-if-env-changed=CARGO_FEATURE_OVERRIDE");
+    println!("cargo:rerun-if-env-changed=CARGO_FEATURE_LOCAL_DYNAMIC_TLS");
+    println!("cargo:rerun-if-env-changed=CARGO_FEATURE_NO_THP");
+
+    let mut build = cc::Build::new();
+    build.file("c_src/mimalloc/src/static.c");
+    build.include("c_src/mimalloc/include");
+    build.include("c_src/mimalloc/src");
+
+    // Optimization flags
+    if !is_debug {
+        build.opt_level(3);
+        build.define("NDEBUG", None);
+        build.define("MI_BUILD_RELEASE", None);
+    } else {
+        build.opt_level(0);
+        build.debug(true);
+    }
+
+    // Debug mode: either explicit feature or auto-enable in debug builds
+    if env::var_os("CARGO_FEATURE_DEBUG").is_some()
+        || (env::var_os("CARGO_FEATURE_DEBUG_IN_DEBUG").is_some() && is_debug)
+    {
+        build.define("MI_DEBUG", "2");
+    } else {
+        build.define("MI_DEBUG", "0");
+    }
+
+    // Secure mode: encrypt heap allocations
+    let secure_level = resolve_secure_level();
+    if let Some(level) = secure_level {
+        build.define("MI_SECURE", level);
+    }
+
+    // TLS model: default is initial-exec for performance.
+    // Use `local_dynamic_tls` feature to switch to local-dynamic model,
+    // which fixes compatibility with projects like polars that have TLS issues.
+    // See: https://github.com/purpleprotocol/mimalloc_rust/issues/138
+    if env::var_os("CARGO_FEATURE_LOCAL_DYNAMIC_TLS").is_some() {
+        build.flag_if_supported("-ftls-model=local-dynamic");
+    } else if target.contains("apple") || target.contains("linux") || target.contains("freebsd") {
+        build.flag_if_supported("-ftls-model=initial-exec");
+    }
+
+    // Disable THP on Linux/Android if requested
+    // See: https://github.com/purpleprotocol/mimalloc_rust/pull/112
+    if env::var_os("CARGO_FEATURE_NO_THP").is_some() {
+        build.define("MI_NO_THP", "1");
+    }
+
+    // macOS: enable dyld interposing for proper override support
+    // See: https://github.com/purpleprotocol/mimalloc_rust/pull/145
+    if target.contains("apple") && env::var_os("CARGO_FEATURE_OVERRIDE").is_some() {
+        build.define("MI_OSX_ZONE", "1");
+        build.define("MI_OSX_INTERPOSE", "1");
+    }
+
+    // Platform-specific compiler flags
+    if target.contains("msvc") || target.contains("windows") {
+        // MSVC: use correct runtime library based on debug/release
+        // See: https://github.com/purpleprotocol/mimalloc_rust/pull/167
+        if is_debug {
+            build.flag("/MDd");
+        } else {
+            build.flag("/MD");
+        }
+        // Suppress common MSVC warnings
+        build.flag("/wd4100"); // unreferenced formal parameter
+        build.flag("/wd4127"); // conditional expression is constant
+        build.flag("/wd4201"); // nameless struct/union
+    } else {
+        // Unix-like: standard warning suppression
+        build.flag_if_supported("-Wno-unused-function");
+        build.flag_if_supported("-Wno-unused-parameter");
+
+        // Fix musl + release build failures with __DATE__ / __TIME__ macros
+        // See: https://github.com/purpleprotocol/mimalloc_rust/pull/139
+        if target.contains("musl") {
+            build.flag_if_supported("-Wno-error=date-time");
+        }
+    }
+
+    // ARM-specific: do NOT force ARMv8.1-A (fixes Raspberry Pi 4 compatibility)
+    // See: https://github.com/purpleprotocol/mimalloc_rust/issues/165
+    // We let the compiler use the target's default architecture level.
+    // If the user wants ARMv8.1-A optimizations, they can set RUSTFLAGS.
+
+    build.compile("mimalloc");
+
+    // Link required system libraries
+    link_system_libs(&target);
+
+    // Export include directory for downstream crates
+    let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+    println!("cargo:include={manifest_dir}/c_src/mimalloc/include");
+
+    // Print version info
+    println!("cargo:version=30500"); // MI_MALLOC_VERSION from mimalloc.h
+}
+
+/// Resolve the MI_SECURE level from features.
+/// Returns the secure level as a string, or None if no secure feature is enabled.
+fn resolve_secure_level() -> Option<&'static str> {
+    let levels = [
+        ("CARGO_FEATURE_SECURE_LEVEL_1", "1"),
+        ("CARGO_FEATURE_SECURE_LEVEL_2", "2"),
+        ("CARGO_FEATURE_SECURE_LEVEL_3", "3"),
+        ("CARGO_FEATURE_SECURE_LEVEL_4", "4"),
+        ("CARGO_FEATURE_SECURE_LEVEL_5", "5"),
+    ];
+
+    let enabled: Vec<_> = levels
+        .iter()
+        .filter(|(env_var, _)| env::var_os(env_var).is_some())
+        .collect();
+
+    // `secure` feature defaults to level 4 (same as upstream)
+    if env::var_os("CARGO_FEATURE_SECURE").is_some() {
+        if !enabled.is_empty() {
+            panic!("feature `secure` cannot be combined with `secure_level_*` features");
+        }
+        return Some("4");
+    }
+
+    if enabled.len() > 1 {
+        panic!("multiple secure levels enabled at once");
+    }
+
+    enabled.first().map(|(_, level)| *level)
+}
+
+/// Link required system libraries based on the target platform.
+fn link_system_libs(target: &str) {
+    if target.contains("windows") {
+        // Windows: required for crypto (BCryptGenRandom), process info (psapi),
+        // and token manipulation (advapi32 for large pages)
+        // See: https://github.com/purpleprotocol/mimalloc_rust/issues/135
+        println!("cargo:rustc-link-lib=advapi32");
+        println!("cargo:rustc-link-lib=bcrypt");
+        println!("cargo:rustc-link-lib=psapi");
+        println!("cargo:rustc-link-lib=shell32");
+        println!("cargo:rustc-link-lib=user32");
+    }
+
+    // ARMv6: needs libatomic for 64-bit atomic operations
+    // See: https://github.com/purpleprotocol/mimalloc_rust/pull/115
+    if target.contains("armv6") || target.contains("arm-unknown") {
+        println!("cargo:rustc-link-lib=atomic");
+    }
+}

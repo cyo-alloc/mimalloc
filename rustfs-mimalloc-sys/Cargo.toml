@@ -1,0 +1,41 @@
+[package]
+name = "rustfs-mimalloc-sys"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Low-level FFI bindings to mimalloc V3"
+keywords.workspace = true
+categories.workspace = true
+links = "mimalloc"
+build = "build.rs"
+
+[features]
+default = []
+# Security: heap allocation encryption (MI_SECURE=4)
+secure = []
+# Fine-grained security levels
+secure_level_1 = []
+secure_level_2 = []
+secure_level_3 = []
+secure_level_4 = []
+secure_level_5 = []
+# Debug mode with extra checks
+debug = []
+# Automatically enable debug mode in debug builds
+debug_in_debug = []
+# Override system malloc/free (use with caution)
+override = []
+# Use local-dynamic TLS model instead of initial-exec
+# Fixes compatibility issues with some projects (e.g., polars)
+local_dynamic_tls = []
+# Disable Transparent Huge Pages on Linux/Android
+no_thp = []
+# Backward-compatible no-op: stats/options bindings are always available.
+extended = []
+
+[build-dependencies]
+cc = "1.4.4"
+
+[dev-dependencies]
