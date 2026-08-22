@@ -43,16 +43,15 @@ fn main() {
 | Feature | Description |
 |---------|-------------|
 | `secure` | Enable heap encryption (MI_SECURE=4) |
-| `secure_level_1..5` | Fine-grained security levels |
 | `debug` | Enable mimalloc debug checks |
 | `debug_in_debug` | Auto-enable debug mode in debug builds |
 | `override` | Override system malloc/free |
-| `extended` | Backward-compatible no-op; stats, options, version, and heap APIs are always available |
 | `local_dynamic_tls` | Use local-dynamic TLS model |
 | `no_thp` | Disable Transparent Huge Pages |
-| `nightly_allocator_api` | Implement nightly `Allocator` trait |
 
-### Extended API
+Stats, options, version, heap, and arena APIs are always available without a feature flag.
+
+### Profile and Stats API
 
 ```rust
 use rustfs_mimalloc::MiMalloc;

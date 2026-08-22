@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+
+- Reduced the feature surface to behavior-changing options only; removed the no-op `extended` feature and fine-grained `secure_level_1..5` aliases.
+- Removed the unstable `nightly_allocator_api` feature so the crate remains fully verifiable on stable Rust.
+- Kept `secure` as the single heap-encryption feature and mapped it directly to mimalloc's upstream default `MI_SECURE=4`.
+- Consolidated profile output collection into a shared internal FFI helper with preallocated callback storage.
+- Changed low-level FFI aliases to use `core::ffi` platform C types.
+- Distinguished owned heap handles from borrowed heap handles so `Heap::main()` and `Heap::heap_of()` do not delete heaps they do not own.
+- Updated CI and release workflows to test only stable feature combinations that exist.
+
 ## [0.1.0] - 2026-08-22
 
 ### Added
@@ -21,4 +33,4 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Kept the `extended` feature as a backward-compatible no-op because stats, options, version, heap, and arena APIs are now always available.
+- Stats, options, version, heap, and arena APIs are always available without a feature flag.

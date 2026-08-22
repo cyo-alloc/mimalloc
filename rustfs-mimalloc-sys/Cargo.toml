@@ -15,12 +15,6 @@ build = "build.rs"
 default = []
 # Security: heap allocation encryption (MI_SECURE=4)
 secure = []
-# Fine-grained security levels
-secure_level_1 = []
-secure_level_2 = []
-secure_level_3 = []
-secure_level_4 = []
-secure_level_5 = []
 # Debug mode with extra checks
 debug = []
 # Automatically enable debug mode in debug builds
@@ -32,8 +26,6 @@ override = []
 local_dynamic_tls = []
 # Disable Transparent Huge Pages on Linux/Android
 no_thp = []
-# Backward-compatible no-op: stats/options bindings are always available.
-extended = []
 
 [build-dependencies]
 cc = "1.4.4"

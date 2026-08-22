@@ -13,11 +13,6 @@ categories.workspace = true
 default = []
 # Security: heap allocation encryption
 secure = ["rustfs-mimalloc-sys/secure"]
-secure_level_1 = ["rustfs-mimalloc-sys/secure_level_1"]
-secure_level_2 = ["rustfs-mimalloc-sys/secure_level_2"]
-secure_level_3 = ["rustfs-mimalloc-sys/secure_level_3"]
-secure_level_4 = ["rustfs-mimalloc-sys/secure_level_4"]
-secure_level_5 = ["rustfs-mimalloc-sys/secure_level_5"]
 # Debug mode
 debug = ["rustfs-mimalloc-sys/debug"]
 debug_in_debug = ["rustfs-mimalloc-sys/debug_in_debug"]
@@ -27,10 +22,6 @@ override = ["rustfs-mimalloc-sys/override"]
 local_dynamic_tls = ["rustfs-mimalloc-sys/local_dynamic_tls"]
 # Disable THP
 no_thp = ["rustfs-mimalloc-sys/no_thp"]
-# Backward-compatible no-op: stats, options, version, heap/arena APIs are always available.
-extended = ["rustfs-mimalloc-sys/extended"]
-# Nightly Allocator trait support
-nightly_allocator_api = []
 
 [dependencies]
 rustfs-mimalloc-sys = { workspace = true }

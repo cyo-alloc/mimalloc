@@ -43,9 +43,8 @@ fn main() {
     }
 
     // Secure mode: encrypt heap allocations
-    let secure_level = resolve_secure_level();
-    if let Some(level) = secure_level {
-        build.define("MI_SECURE", level);
+    if env::var_os("CARGO_FEATURE_SECURE").is_some() {
+        build.define("MI_SECURE", "4");
     }
 
     // TLS model: default is initial-exec for performance.
@@ -112,37 +111,6 @@ fn main() {
 
     // Print version info
     println!("cargo:version=30500"); // MI_MALLOC_VERSION from mimalloc.h
-}
-
-/// Resolve the MI_SECURE level from features.
-/// Returns the secure level as a string, or None if no secure feature is enabled.
-fn resolve_secure_level() -> Option<&'static str> {
-    let levels = [
-        ("CARGO_FEATURE_SECURE_LEVEL_1", "1"),
-        ("CARGO_FEATURE_SECURE_LEVEL_2", "2"),
-        ("CARGO_FEATURE_SECURE_LEVEL_3", "3"),
-        ("CARGO_FEATURE_SECURE_LEVEL_4", "4"),
-        ("CARGO_FEATURE_SECURE_LEVEL_5", "5"),
-    ];
-
-    let enabled: Vec<_> = levels
-        .iter()
-        .filter(|(env_var, _)| env::var_os(env_var).is_some())
-        .collect();
-
-    // `secure` feature defaults to level 4 (same as upstream)
-    if env::var_os("CARGO_FEATURE_SECURE").is_some() {
-        if !enabled.is_empty() {
-            panic!("feature `secure` cannot be combined with `secure_level_*` features");
-        }
-        return Some("4");
-    }
-
-    if enabled.len() > 1 {
-        panic!("multiple secure levels enabled at once");
-    }
-
-    enabled.first().map(|(_, level)| *level)
 }
 
 /// Link required system libraries based on the target platform.
