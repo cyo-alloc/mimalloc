@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-22
+
+### Changed
+
+- Switched mimalloc source from embedded code to git submodule (`microsoft/mimalloc`).
+- Updated mimalloc submodule to v3.5.0 (commit `cd69707`).
+- Simplified submodule update process: `git fetch` + `git checkout` in submodule directory.
+- Pinned `codeql-action` to major version `v4` in CI workflow.
+
 ## [0.3.0] - 2026-08-22
 
 ### Added
@@ -64,7 +73,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Release workflow: tag-triggered + manual dispatch, crates.io publish, GitHub Release.
 - 22 unit tests + 2 doc-tests + allocation benchmarks.
 
-[Unreleased]: https://github.com/houseme/rustfs-mimalloc/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/houseme/rustfs-mimalloc/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/houseme/rustfs-mimalloc/compare/v0.3.0...v0.5.0
 [0.3.0]: https://github.com/houseme/rustfs-mimalloc/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/houseme/rustfs-mimalloc/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/houseme/rustfs-mimalloc/releases/tag/v0.1.0
