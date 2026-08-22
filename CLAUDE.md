@@ -3,7 +3,7 @@
 ## Project
 
 rustfs-mimalloc: high-performance mimalloc V3 (v3.5.0) bindings for Rust.
-MSRV: Rust 1.85.0 (edition 2024).
+MSRV: Rust 1.96.0 (rolling window: latest three stable releases).
 
 ## Structure
 

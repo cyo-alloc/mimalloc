@@ -47,7 +47,7 @@ The two crates inherit their package version from the workspace:
 # Cargo.toml
 [workspace.package]
 version = "<VERSION>"
-rust-version = "1.85.0"
+rust-version = "1.96.0"
 ```
 
 The wrapper's registry dependency requirement for the sys crate is also in the workspace root:

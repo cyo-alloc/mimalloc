@@ -71,7 +71,7 @@ heap.delete();
 
 ## MSRV
 
-Rust 1.85.0 (edition 2024).
+Rust 1.96.0. Rolling support window for the latest three stable Rust releases.
 
 ## License
 
