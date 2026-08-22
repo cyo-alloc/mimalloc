@@ -1,7 +1,7 @@
-//! Extended API: stats, options, version, process information.
+//! Stats, options, version, and process information APIs.
 
 use crate::MiMalloc;
-use core::ffi::{c_void, CStr};
+use core::ffi::c_void;
 
 /// Process memory information returned by [`MiMalloc::process_info`].
 #[derive(Debug, Clone, Copy, Default)]
@@ -15,8 +15,6 @@ pub struct ProcessInfo {
     pub peak_commit: usize,
     pub page_faults: usize,
 }
-
-// ── Single impl block — no patch-on-patch ───────────────────────────────────
 
 impl MiMalloc {
     /// mimalloc version as `major * 10000 + minor * 100 + patch`.
@@ -37,7 +35,7 @@ impl MiMalloc {
     /// `ptr` must have been allocated by mimalloc.
     #[inline]
     pub unsafe fn usable_size(ptr: *const u8) -> usize {
-        rustfs_mimalloc_sys::mi_usable_size(ptr as *const c_void)
+        unsafe { rustfs_mimalloc_sys::mi_usable_size(ptr as *const c_void) }
     }
 
     /// Process memory information.
@@ -63,20 +61,16 @@ impl MiMalloc {
     /// Allocation statistics as JSON. Returns empty string on failure.
     pub fn stats_json() -> String {
         unsafe {
-            let ptr = rustfs_mimalloc_sys::mi_stats_get_json(0, core::ptr::null_mut());
-            if ptr.is_null() {
-                return String::new();
-            }
-            let cstr = core::ffi::CStr::from_ptr(ptr);
-            let result = cstr.to_string_lossy().into_owned();
-            rustfs_mimalloc_sys::mi_free(ptr as *mut c_void);
-            result
+            crate::ffi::owned_mimalloc_string(rustfs_mimalloc_sys::mi_stats_get_json(
+                0,
+                core::ptr::null_mut(),
+            ))
         }
     }
 
     /// Allocation statistics in mimalloc's human-readable text format.
     pub fn stats_print() -> String {
-        collect_mimalloc_output(|out, arg| unsafe {
+        crate::ffi::collect_mimalloc_output(|out, arg| unsafe {
             rustfs_mimalloc_sys::mi_stats_print_out(out, arg);
         })
     }
@@ -89,7 +83,7 @@ impl MiMalloc {
 
     /// Process memory information in mimalloc's human-readable text format.
     pub fn process_info_print() -> String {
-        collect_mimalloc_output(|out, arg| unsafe {
+        crate::ffi::collect_mimalloc_output(|out, arg| unsafe {
             rustfs_mimalloc_sys::mi_process_info_print_out(out, arg);
         })
     }
@@ -104,8 +98,8 @@ impl MiMalloc {
 
     /// Get an option value.
     #[inline]
-    pub fn option_get(option: rustfs_mimalloc_sys::mi_option_t) -> i64 {
-        unsafe { rustfs_mimalloc_sys::mi_option_get(option) as i64 }
+    pub fn option_get(option: rustfs_mimalloc_sys::mi_option_t) -> rustfs_mimalloc_sys::c_long {
+        unsafe { rustfs_mimalloc_sys::mi_option_get(option) }
     }
 
     /// Get an option value as size (bytes).
@@ -124,7 +118,10 @@ impl MiMalloc {
     /// MiMalloc::option_set(mi_option_t::mi_option_purge_delay, 0);
     /// ```
     #[inline]
-    pub fn option_set(option: rustfs_mimalloc_sys::mi_option_t, value: i64) {
+    pub fn option_set(
+        option: rustfs_mimalloc_sys::mi_option_t,
+        value: rustfs_mimalloc_sys::c_long,
+    ) {
         unsafe { rustfs_mimalloc_sys::mi_option_set(option, value) }
     }
 
@@ -139,30 +136,6 @@ impl MiMalloc {
     pub fn option_disable(option: rustfs_mimalloc_sys::mi_option_t) {
         unsafe { rustfs_mimalloc_sys::mi_option_disable(option) }
     }
-}
-
-pub(crate) fn collect_mimalloc_output(
-    write: impl FnOnce(Option<rustfs_mimalloc_sys::mi_output_fun>, *mut c_void),
-) -> String {
-    let mut output = Vec::new();
-    write(
-        Some(collect_mimalloc_output_callback),
-        &mut output as *mut Vec<u8> as *mut c_void,
-    );
-    String::from_utf8_lossy(&output).into_owned()
-}
-
-unsafe extern "C" fn collect_mimalloc_output_callback(
-    msg: *const rustfs_mimalloc_sys::c_char,
-    arg: *mut c_void,
-) {
-    if msg.is_null() || arg.is_null() {
-        return;
-    }
-
-    let output = unsafe { &mut *(arg as *mut Vec<u8>) };
-    let msg = unsafe { CStr::from_ptr(msg) };
-    output.extend_from_slice(msg.to_bytes());
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────

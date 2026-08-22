@@ -1,9 +1,6 @@
 //! Heap and arena operations for advanced memory management.
 
-#![allow(unsafe_op_in_unsafe_fn)]
-
 use core::ffi::c_void;
-use core::ffi::CStr;
 use core::ptr::NonNull;
 
 // ── Error type ──────────────────────────────────────────────────────────────
@@ -23,6 +20,7 @@ pub enum ArenaError {
 /// Dropping a `Heap` moves its live blocks to the main heap (via `mi_heap_delete`).
 pub struct Heap {
     ptr: NonNull<rustfs_mimalloc_sys::mi_heap_t>,
+    owned: bool,
 }
 
 unsafe impl Send for Heap {}
@@ -31,21 +29,19 @@ unsafe impl Sync for Heap {}
 impl Heap {
     /// Create a new heap. Returns `None` on OOM.
     pub fn new() -> Option<Self> {
-        NonNull::new(unsafe { rustfs_mimalloc_sys::mi_heap_new() }).map(|ptr| Heap { ptr })
+        NonNull::new(unsafe { rustfs_mimalloc_sys::mi_heap_new() }).map(Self::owned)
     }
 
     /// Create a heap that allocates exclusively from the given arena.
     pub fn new_in_arena(arena_id: ArenaId) -> Option<Self> {
         NonNull::new(unsafe { rustfs_mimalloc_sys::mi_heap_new_in_arena(arena_id.0) })
-            .map(|ptr| Heap { ptr })
+            .map(Self::owned)
     }
 
     /// Get the main heap.
     pub fn main() -> Self {
         let ptr = unsafe { rustfs_mimalloc_sys::mi_heap_main() };
-        Heap {
-            ptr: NonNull::new(ptr).expect("mi_heap_main returned null"),
-        }
+        Self::borrowed(NonNull::new(ptr).expect("mi_heap_main returned null"))
     }
 
     /// Get the heap that owns `ptr`.
@@ -53,7 +49,8 @@ impl Heap {
     /// # Safety
     /// `ptr` must be a valid mimalloc-allocated pointer.
     pub unsafe fn heap_of(ptr: *const u8) -> Option<Self> {
-        NonNull::new(rustfs_mimalloc_sys::mi_heap_of(ptr as *const c_void)).map(|ptr| Heap { ptr })
+        NonNull::new(unsafe { rustfs_mimalloc_sys::mi_heap_of(ptr as *const c_void) })
+            .map(Self::borrowed)
     }
 
     /// Check if this heap contains `ptr`.
@@ -61,7 +58,7 @@ impl Heap {
     /// # Safety
     /// `ptr` must be valid.
     pub unsafe fn contains(&self, ptr: *const u8) -> bool {
-        rustfs_mimalloc_sys::mi_heap_contains(self.ptr.as_ptr(), ptr as *const c_void)
+        unsafe { rustfs_mimalloc_sys::mi_heap_contains(self.ptr.as_ptr(), ptr as *const c_void) }
     }
 
     /// Allocate `size` bytes from this heap.
@@ -69,7 +66,7 @@ impl Heap {
     /// # Safety
     /// The returned pointer must be freed with `mi_free` (cross-heap frees are allowed).
     pub unsafe fn malloc(&self, size: usize) -> *mut u8 {
-        rustfs_mimalloc_sys::mi_heap_malloc(self.ptr.as_ptr(), size) as *mut u8
+        unsafe { rustfs_mimalloc_sys::mi_heap_malloc(self.ptr.as_ptr(), size) as *mut u8 }
     }
 
     /// Allocate zero-initialized memory from this heap.
@@ -77,7 +74,7 @@ impl Heap {
     /// # Safety
     /// The returned pointer must be freed with `mi_free`.
     pub unsafe fn zalloc(&self, size: usize) -> *mut u8 {
-        rustfs_mimalloc_sys::mi_heap_zalloc(self.ptr.as_ptr(), size) as *mut u8
+        unsafe { rustfs_mimalloc_sys::mi_heap_zalloc(self.ptr.as_ptr(), size) as *mut u8 }
     }
 
     /// Allocate aligned memory from this heap.
@@ -85,7 +82,10 @@ impl Heap {
     /// # Safety
     /// The returned pointer must be freed with `mi_free`.
     pub unsafe fn malloc_aligned(&self, size: usize, alignment: usize) -> *mut u8 {
-        rustfs_mimalloc_sys::mi_heap_malloc_aligned(self.ptr.as_ptr(), size, alignment) as *mut u8
+        unsafe {
+            rustfs_mimalloc_sys::mi_heap_malloc_aligned(self.ptr.as_ptr(), size, alignment)
+                as *mut u8
+        }
     }
 
     /// Reallocate memory from this heap.
@@ -93,23 +93,29 @@ impl Heap {
     /// # Safety
     /// `ptr` must be a valid mimalloc pointer. The returned pointer must be freed with `mi_free`.
     pub unsafe fn realloc(&self, ptr: *mut u8, new_size: usize) -> *mut u8 {
-        rustfs_mimalloc_sys::mi_heap_realloc(self.ptr.as_ptr(), ptr as *mut c_void, new_size)
-            as *mut u8
+        unsafe {
+            rustfs_mimalloc_sys::mi_heap_realloc(self.ptr.as_ptr(), ptr as *mut c_void, new_size)
+                as *mut u8
+        }
     }
 
     /// Delete this heap, moving live blocks to the main heap.
-    /// Consumes `self` without running `Drop`.
+    /// Consumes `self` without running `Drop`. Borrowed heap handles are left untouched.
     pub fn delete(self) {
-        unsafe { rustfs_mimalloc_sys::mi_heap_delete(self.ptr.as_ptr()) }
+        if self.owned {
+            unsafe { rustfs_mimalloc_sys::mi_heap_delete(self.ptr.as_ptr()) }
+        }
         core::mem::forget(self);
     }
 
     /// Destroy this heap, freeing all live blocks.
     ///
     /// # Safety
-    /// All pointers from this heap become dangling.
+    /// All pointers from this heap become dangling. Borrowed heap handles are left untouched.
     pub unsafe fn destroy(self) {
-        rustfs_mimalloc_sys::mi_heap_destroy(self.ptr.as_ptr());
+        if self.owned {
+            unsafe { rustfs_mimalloc_sys::mi_heap_destroy(self.ptr.as_ptr()) };
+        }
         core::mem::forget(self);
     }
 
@@ -121,23 +127,17 @@ impl Heap {
     /// Allocation statistics for this heap as JSON. Returns empty string on failure.
     pub fn stats_json(&self) -> String {
         unsafe {
-            let ptr = rustfs_mimalloc_sys::mi_heap_stats_get_json(
+            crate::ffi::owned_mimalloc_string(rustfs_mimalloc_sys::mi_heap_stats_get_json(
                 self.ptr.as_ptr(),
                 0,
                 core::ptr::null_mut(),
-            );
-            if ptr.is_null() {
-                return String::new();
-            }
-            let result = CStr::from_ptr(ptr).to_string_lossy().into_owned();
-            rustfs_mimalloc_sys::mi_free(ptr as *mut c_void);
-            result
+            ))
         }
     }
 
     /// Allocation statistics for this heap in mimalloc's human-readable text format.
     pub fn stats_print(&self) -> String {
-        crate::extended::collect_mimalloc_output(|out, arg| unsafe {
+        crate::ffi::collect_mimalloc_output(|out, arg| unsafe {
             rustfs_mimalloc_sys::mi_heap_stats_print_out(self.ptr.as_ptr(), out, arg);
         })
     }
@@ -146,11 +146,23 @@ impl Heap {
     pub fn as_ptr(&self) -> *mut rustfs_mimalloc_sys::mi_heap_t {
         self.ptr.as_ptr()
     }
+
+    #[inline]
+    fn owned(ptr: NonNull<rustfs_mimalloc_sys::mi_heap_t>) -> Self {
+        Self { ptr, owned: true }
+    }
+
+    #[inline]
+    fn borrowed(ptr: NonNull<rustfs_mimalloc_sys::mi_heap_t>) -> Self {
+        Self { ptr, owned: false }
+    }
 }
 
 impl Drop for Heap {
     fn drop(&mut self) {
-        unsafe { rustfs_mimalloc_sys::mi_heap_delete(self.ptr.as_ptr()) }
+        if self.owned {
+            unsafe { rustfs_mimalloc_sys::mi_heap_delete(self.ptr.as_ptr()) }
+        }
     }
 }
 
@@ -195,16 +207,18 @@ pub unsafe fn manage_os_memory(
     exclusive: bool,
 ) -> Result<ArenaId, ArenaError> {
     let mut id = core::ptr::null_mut();
-    let ok = rustfs_mimalloc_sys::mi_manage_os_memory_ex(
-        start as *mut c_void,
-        size,
-        is_committed,
-        is_pinned,
-        is_zero,
-        numa_node,
-        exclusive,
-        &mut id,
-    );
+    let ok = unsafe {
+        rustfs_mimalloc_sys::mi_manage_os_memory_ex(
+            start as *mut c_void,
+            size,
+            is_committed,
+            is_pinned,
+            is_zero,
+            numa_node,
+            exclusive,
+            &mut id,
+        )
+    };
     if ok {
         Ok(ArenaId(id))
     } else {
@@ -281,5 +295,17 @@ mod tests {
         assert!(!heap.stats_json().is_empty());
         assert!(!heap.stats_print().is_empty());
         heap.delete();
+    }
+
+    #[test]
+    fn borrowed_main_heap_delete_is_noop() {
+        let heap = Heap::main();
+        heap.delete();
+
+        unsafe {
+            let ptr = rustfs_mimalloc_sys::mi_malloc(64);
+            assert!(!ptr.is_null());
+            rustfs_mimalloc_sys::mi_free(ptr);
+        }
     }
 }

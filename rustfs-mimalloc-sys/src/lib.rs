@@ -3,15 +3,12 @@
 //! For a safe wrapper, use the `rustfs-mimalloc` crate.
 
 #![no_std]
-#![allow(non_camel_case_types, unsafe_op_in_unsafe_fn)]
-
-use core::ffi::c_void;
+#![allow(non_camel_case_types)]
 
 // ── Type aliases ────────────────────────────────────────────────────────────
 
-pub type c_char = i8;
-pub type c_int = i32;
-pub type c_long = i64;
+pub use core::ffi::{c_char, c_int, c_long, c_void};
+
 pub type size_t = usize;
 
 // ── Opaque types ────────────────────────────────────────────────────────────

@@ -7,11 +7,12 @@
 //! static GLOBAL: MiMalloc = MiMalloc;
 //! ```
 
-#![cfg_attr(feature = "nightly_allocator_api", feature(allocator_api))]
-#![allow(unsafe_op_in_unsafe_fn)]
+mod api;
+mod ffi;
 
-pub mod extended;
 pub mod heap;
+
+pub use api::ProcessInfo;
 
 use core::alloc::{GlobalAlloc, Layout};
 use core::ffi::c_void;
@@ -28,125 +29,25 @@ pub struct MiMalloc;
 unsafe impl GlobalAlloc for MiMalloc {
     #[inline(always)]
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        rustfs_mimalloc_sys::mi_malloc_aligned(layout.size(), layout.align()) as *mut u8
+        unsafe { rustfs_mimalloc_sys::mi_malloc_aligned(layout.size(), layout.align()) as *mut u8 }
     }
 
     #[inline(always)]
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
-        rustfs_mimalloc_sys::mi_zalloc_aligned(layout.size(), layout.align()) as *mut u8
+        unsafe { rustfs_mimalloc_sys::mi_zalloc_aligned(layout.size(), layout.align()) as *mut u8 }
     }
 
     #[inline(always)]
     unsafe fn dealloc(&self, ptr: *mut u8, _layout: Layout) {
-        rustfs_mimalloc_sys::mi_free(ptr as *mut c_void);
+        unsafe { rustfs_mimalloc_sys::mi_free(ptr as *mut c_void) };
     }
 
     #[inline(always)]
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
-        rustfs_mimalloc_sys::mi_realloc_aligned(ptr as *mut c_void, new_size, layout.align())
-            as *mut u8
-    }
-}
-
-// ── Nightly Allocator trait ─────────────────────────────────────────────────
-
-#[cfg(feature = "nightly_allocator_api")]
-unsafe impl core::alloc::Allocator for MiMalloc {
-    #[inline]
-    fn allocate(
-        &self,
-        layout: Layout,
-    ) -> Result<core::ptr::NonNull<[u8]>, core::alloc::AllocError> {
-        let ptr = unsafe { rustfs_mimalloc_sys::mi_malloc_aligned(layout.size(), layout.align()) };
-        if ptr.is_null() {
-            return Err(core::alloc::AllocError);
+        unsafe {
+            rustfs_mimalloc_sys::mi_realloc_aligned(ptr as *mut c_void, new_size, layout.align())
+                as *mut u8
         }
-        Ok(core::ptr::NonNull::slice_from_raw_parts(
-            // SAFETY: null check above
-            unsafe { core::ptr::NonNull::new_unchecked(ptr as *mut u8) },
-            layout.size(),
-        ))
-    }
-
-    #[inline]
-    unsafe fn deallocate(&self, ptr: core::ptr::NonNull<u8>, _layout: Layout) {
-        rustfs_mimalloc_sys::mi_free(ptr.as_ptr() as *mut c_void);
-    }
-
-    #[inline]
-    fn allocate_zeroed(
-        &self,
-        layout: Layout,
-    ) -> Result<core::ptr::NonNull<[u8]>, core::alloc::AllocError> {
-        let ptr = unsafe { rustfs_mimalloc_sys::mi_zalloc_aligned(layout.size(), layout.align()) };
-        if ptr.is_null() {
-            return Err(core::alloc::AllocError);
-        }
-        Ok(core::ptr::NonNull::slice_from_raw_parts(
-            unsafe { core::ptr::NonNull::new_unchecked(ptr as *mut u8) },
-            layout.size(),
-        ))
-    }
-
-    #[inline]
-    unsafe fn grow(
-        &self,
-        ptr: core::ptr::NonNull<u8>,
-        old_layout: Layout,
-        new_layout: Layout,
-    ) -> Result<core::ptr::NonNull<[u8]>, core::alloc::AllocError> {
-        debug_assert!(
-            new_layout.size() >= old_layout.size(),
-            "`new_layout.size()` must be greater than or equal to `old_layout.size()`"
-        );
-        let new_ptr = rustfs_mimalloc_sys::mi_realloc_aligned(
-            ptr.as_ptr() as *mut c_void,
-            new_layout.size(),
-            new_layout.align(),
-        );
-        if new_ptr.is_null() {
-            return Err(core::alloc::AllocError);
-        }
-        Ok(core::ptr::NonNull::slice_from_raw_parts(
-            core::ptr::NonNull::new_unchecked(new_ptr as *mut u8),
-            new_layout.size(),
-        ))
-    }
-
-    #[inline]
-    unsafe fn grow_zeroed(
-        &self,
-        ptr: core::ptr::NonNull<u8>,
-        old_layout: Layout,
-        new_layout: Layout,
-    ) -> Result<core::ptr::NonNull<[u8]>, core::alloc::AllocError> {
-        // mimalloc's realloc doesn't zero new bytes; fall back to alloc+copy
-        self.grow(ptr, old_layout, new_layout)
-    }
-
-    #[inline]
-    unsafe fn shrink(
-        &self,
-        ptr: core::ptr::NonNull<u8>,
-        old_layout: Layout,
-        new_layout: Layout,
-    ) -> Result<core::ptr::NonNull<[u8]>, core::alloc::AllocError> {
-        debug_assert!(
-            new_layout.size() <= old_layout.size(),
-            "`new_layout.size()` must be smaller than or equal to `old_layout.size()`"
-        );
-        let new_ptr = rustfs_mimalloc_sys::mi_realloc_aligned(
-            ptr.as_ptr() as *mut c_void,
-            new_layout.size(),
-            new_layout.align(),
-        );
-        if new_ptr.is_null() {
-            return Err(core::alloc::AllocError);
-        }
-        Ok(core::ptr::NonNull::slice_from_raw_parts(
-            core::ptr::NonNull::new_unchecked(new_ptr as *mut u8),
-            new_layout.size(),
-        ))
     }
 }
 
