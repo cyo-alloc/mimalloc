@@ -1,0 +1,208 @@
+name: Release
+
+on:
+  # Trigger on version tags: v0.1.0, v1.2.3, etc.
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+*"
+  # Manual dispatch with version input
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g. 0.1.0). Leave empty to use tag."
+        required: false
+        type: string
+      dry_run:
+        description: "Dry run — skip crates.io publish and GitHub release"
+        required: false
+        type: boolean
+        default: false
+
+env:
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  # ── Resolve version ────────────────────────────────────────────────────────
+
+  prepare:
+    name: Prepare release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      is_dry_run: ${{ steps.version.outputs.is_dry_run }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+            TAG="v${VERSION}"
+          elif [ -n "${GITHUB_REF_NAME}" ] && [[ "${GITHUB_REF_NAME}" == v* ]]; then
+            TAG="${GITHUB_REF_NAME}"
+            VERSION="${TAG#v}"
+          else
+            echo "::error::No version provided. Use workflow_dispatch input or push a v* tag."
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "is_dry_run=${{ inputs.dry_run || false }}" >> "$GITHUB_OUTPUT"
+          echo "Releasing version: ${VERSION} (tag: ${TAG})"
+
+      - name: Verify version consistency
+        run: |
+          SYS_VER=$(grep '^version' rustfs-mimalloc-sys/Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          WRAP_VER=$(grep '^version' rustfs-mimalloc/Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          WS_VER=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          EXPECTED="${{ steps.version.outputs.version }}"
+          echo "Expected: ${EXPECTED}"
+          echo "Workspace: ${WS_VER}, sys: ${SYS_VER}, wrapper: ${WRAP_VER}"
+          if [ "${SYS_VER}" != "${EXPECTED}" ] || [ "${WRAP_VER}" != "${EXPECTED}" ] || [ "${WS_VER}" != "${EXPECTED}" ]; then
+            echo "::error::Version mismatch! Update all Cargo.toml files to ${EXPECTED} before releasing."
+            exit 1
+          fi
+
+  # ── Full test gate ─────────────────────────────────────────────────────────
+
+  test:
+    name: Test (${{ matrix.os }})
+    needs: prepare
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ ubuntu-latest, macos-latest, windows-latest ]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build (default)
+        run: cargo build
+
+      - name: Test (default)
+        run: cargo test
+
+      - name: Build (secure + extended)
+        run: cargo build --features secure,extended
+
+      - name: Test (secure + extended)
+        run: cargo test --features secure,extended
+
+  # ── Lint gate ──────────────────────────────────────────────────────────────
+
+  lint:
+    name: Lint
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Rustfmt
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --features secure,extended -- -D warnings
+
+  # ── Publish to crates.io ──────────────────────────────────────────────────
+
+  publish:
+    name: Publish to crates.io
+    needs: [ prepare, test, lint ]
+    if: needs.prepare.outputs.is_dry_run != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Publish rustfs-mimalloc-sys
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          cd rustfs-mimalloc-sys
+          cargo publish --registry crates-io --package rustfs-mimalloc-sys --allow-dirty
+          echo "Waiting for crates.io index..."
+          sleep 30
+
+      - name: Publish rustfs-mimalloc
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          cd rustfs-mimalloc
+          cargo publish --registry crates-io --package rustfs-mimalloc --allow-dirty
+
+  # ── GitHub Release ─────────────────────────────────────────────────────────
+
+  github-release:
+    name: GitHub Release
+    needs: [ prepare, publish ]
+    if: needs.prepare.outputs.is_dry_run != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get previous tag
+          PREV_TAG=$(git tag --sort=-v:refname | grep '^v[0-9]' | sed -n '2p')
+          if [ -z "${PREV_TAG}" ]; then
+            CHANGES="Initial release."
+          else
+            CHANGES=$(git log --pretty=format:"- %s (%h)" "${PREV_TAG}..HEAD" --no-merges)
+          fi
+          # Write to file for multi-line output
+          echo "${CHANGES}" > /tmp/changelog.md
+          echo "prev_tag=${PREV_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: v${{ needs.prepare.outputs.version }}
+          body: |
+            ## rustfs-mimalloc v${{ needs.prepare.outputs.version }}
+
+            mimalloc V3 (v3.5.0) bindings for Rust.
+
+            ### Changes
+            ${{ steps.changelog.outputs.prev_tag && '' || '' }}
+            $(cat /tmp/changelog.md)
+
+            ### Installation
+            ```toml
+            [dependencies]
+            rustfs-mimalloc = "${{ needs.prepare.outputs.version }}"
+            ```
+
+            ### Checksums
+            See the assets below for pre-built artifacts.
+          draft: false
+          prerelease: ${{ contains(needs.prepare.outputs.version, '-') }}
+          generate_release_notes: true
+
+  # ── Dry run summary ────────────────────────────────────────────────────────
+
+  dry-run-summary:
+    name: Dry Run Summary
+    needs: [ prepare, test, lint ]
+    if: needs.prepare.outputs.is_dry_run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Summary
+        run: |
+          echo "## 🏷️ Dry Run Complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Version**: \`${{ needs.prepare.outputs.version }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Tag**: \`${{ needs.prepare.outputs.tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Tests: ✅ passed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Lint: ✅ passed" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "To publish for real, re-run with **dry_run** unchecked." >> "$GITHUB_STEP_SUMMARY"
