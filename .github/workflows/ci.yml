@@ -37,6 +37,8 @@ jobs:
             features: "override"
           - os: macos-latest
             features: "override"
+          - os: windows-latest
+            features: "win_direct_tls"
           # stable feature set (non-Windows)
           - os: ubuntu-latest
             features: "secure,debug,override"
@@ -44,7 +46,7 @@ jobs:
             features: "secure,debug,override"
           # stable feature set (Windows — no override)
           - os: windows-latest
-            features: "secure,debug"
+            features: "secure,debug,win_direct_tls"
 
     runs-on: ${{ matrix.os }}
 
@@ -80,14 +82,14 @@ jobs:
   # ── MSRV check ─────────────────────────────────────────────────────────────
 
   msrv:
-    name: MSRV (1.95.0)
+    name: MSRV (1.85.0)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.95.0"
+          toolchain: "1.85.0"
 
       - name: Build
         run: cargo build
