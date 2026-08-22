@@ -2,37 +2,69 @@
 
 All notable changes to this project will be documented in this file.
 
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
 ## [Unreleased]
+
+## [0.3.0] - 2026-08-22
+
+### Added
+
+- Added `homepage` and `documentation` fields to all Cargo.toml packages.
+- Added `README.md` to `rustfs-mimalloc-sys` and `rustfs-mimalloc` sub-crates.
+- Added `readme` field to sub-crate Cargo.toml files for crates.io display.
 
 ### Changed
 
-- Raised the MSRV to Rust 1.96.0, matching the rolling support window for the latest three stable Rust release trains.
+- Updated workspace version to 0.3.0.
+- Updated all documentation to reflect current MSRV (1.96.0).
+
+### Removed
+
+- Removed dead `win_direct_tls` feature (unused in build.rs and source code).
+
+## [0.2.0] - 2026-08-22
+
+### Added
+
+- Added `README.md` to `rustfs-mimalloc-sys` and `rustfs-mimalloc` sub-crates.
+- Added `readme` field to both sub-crate Cargo.toml files.
+
+### Changed
+
+- Raised MSRV from 1.85.0 to 1.96.0, matching the rolling support window for the latest three stable Rust release trains.
 - Reduced the feature surface to behavior-changing options only; removed the no-op `extended` feature and fine-grained `secure_level_1..5` aliases.
 - Removed the unstable `nightly_allocator_api` feature so the crate remains fully verifiable on stable Rust.
 - Kept `secure` as the single heap-encryption feature and mapped it directly to mimalloc's upstream default `MI_SECURE=4`.
-- Added `win_direct_tls` as a Windows-only v3 performance opt-in for deployments that can guarantee direct TLS slot availability.
 - Consolidated profile output collection into a shared internal FFI helper with preallocated callback storage.
 - Changed low-level FFI aliases to use `core::ffi` platform C types.
 - Distinguished owned heap handles from borrowed heap handles so `Heap::main()` and `Heap::heap_of()` do not delete heaps they do not own.
 - Updated CI and release workflows to test only stable feature combinations that exist.
 
+### Removed
+
+- Removed dead `win_direct_tls` feature (unused in build.rs and source code).
+- Removed `extended` feature; all stats/options/heap APIs are always available.
+- Removed `nightly_allocator_api` feature.
+- Removed `secure_level_1..5` fine-grained features.
+
 ## [0.1.0] - 2026-08-22
 
 ### Added
 
-- Added `rustfs-mimalloc-sys`, a low-level FFI crate that builds and links mimalloc v3.5.0.
-- Added `rustfs-mimalloc`, a safe global allocator wrapper for mimalloc v3.
-- Added heap and arena management helpers for advanced allocation control.
-- Added process memory information APIs through `MiMalloc::process_info`.
-- Added memory profile APIs for RustFS profiling handlers:
-  - `MiMalloc::stats_json`
-  - `MiMalloc::stats_print`
-  - `MiMalloc::process_info_print`
-  - `MiMalloc::stats_reset`
-  - `Heap::stats_json`
-  - `Heap::stats_print`
-- Added allocator smoke tests, heap tests, stats/profile tests, doctests, and allocation benchmarks.
+- Initial release.
+- `rustfs-mimalloc-sys`: low-level FFI crate that builds and links mimalloc V3 (v3.5.0).
+- `rustfs-mimalloc`: safe global allocator wrapper implementing `GlobalAlloc`.
+- Heap and arena management helpers for advanced allocation control.
+- Process memory information APIs: `MiMalloc::process_info()`, `MiMalloc::stats_json()`, `MiMalloc::stats_print()`, `MiMalloc::process_info_print()`, `MiMalloc::stats_reset()`.
+- Runtime option APIs: `MiMalloc::option_set()`, `option_get()`, `option_enable()`, `option_disable()`.
+- Features: `secure`, `debug`, `debug_in_debug`, `override`, `local_dynamic_tls`, `no_thp`.
+- CI: 3-platform test matrix (Linux/macOS/Windows), musl cross-compile, MSRV check, lint, docs.
+- Release workflow: tag-triggered + manual dispatch, crates.io publish, GitHub Release.
+- 22 unit tests + 2 doc-tests + allocation benchmarks.
 
-### Changed
-
-- Stats, options, version, heap, and arena APIs are always available without a feature flag.
+[Unreleased]: https://github.com/houseme/rustfs-mimalloc/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/houseme/rustfs-mimalloc/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/houseme/rustfs-mimalloc/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/houseme/rustfs-mimalloc/releases/tag/v0.1.0
