@@ -37,8 +37,6 @@ jobs:
             features: "override"
           - os: macos-latest
             features: "override"
-          - os: windows-latest
-            features: "win_direct_tls"
           # stable feature set (non-Windows)
           - os: ubuntu-latest
             features: "secure,debug,override"
@@ -46,7 +44,7 @@ jobs:
             features: "secure,debug,override"
           # stable feature set (Windows — no override)
           - os: windows-latest
-            features: "secure,debug,win_direct_tls"
+            features: "secure,debug"
 
     runs-on: ${{ matrix.os }}
 

@@ -109,10 +109,10 @@ jobs:
         run: cargo test --features secure
 
       - name: Build (stable feature set)
-        run: cargo build --features secure,debug,win_direct_tls
+        run: cargo build --features secure,debug
 
       - name: Test (stable feature set)
-        run: cargo test --features secure,debug,win_direct_tls
+        run: cargo test --features secure,debug
 
   # ── Lint gate ──────────────────────────────────────────────────────────────
 

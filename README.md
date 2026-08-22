@@ -49,7 +49,6 @@ fn main() {
 | `debug_in_debug` | | Auto-enable `debug` in Cargo debug builds |
 | `override` | | Override system `malloc`/`free` |
 | `local_dynamic_tls` | | Use local-dynamic TLS model (fixes polars compatibility) |
-| `win_direct_tls` | | Enable the Windows direct TLS fast path when direct TLS slots are known to be available |
 | `no_thp` | | Disable Transparent Huge Pages on Linux/Android |
 
 All stats, options, heap, and arena APIs are available without any feature flag.

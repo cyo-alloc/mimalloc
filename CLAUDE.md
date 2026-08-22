@@ -27,7 +27,7 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 
 ## Features
 
-`secure` / `debug` / `debug_in_debug` / `override` / `local_dynamic_tls` / `win_direct_tls` / `no_thp`
+`secure` / `debug` / `debug_in_debug` / `override` / `local_dynamic_tls` / `no_thp`
 
 ## Release
 

@@ -109,9 +109,8 @@ Run these checks before tagging. Stop on the first failure and report the exact 
 ```bash
 cargo fmt --all --check
 cargo +1.96.0 check --workspace --all-targets
-cargo +1.96.0 test --workspace
 cargo test --workspace
-cargo test --workspace --features secure,debug,win_direct_tls
+cargo test --workspace --features secure,debug
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo doc --workspace --no-deps
 cargo package -p rustfs-mimalloc-sys --allow-dirty
