@@ -19,6 +19,8 @@ When release behavior, supported Rust versions, feature flags, or publish steps 
 | `.gitmodules` | mimalloc submodule URL or path changes |
 | `CHANGELOG.md` | User-visible release notes or release date changes |
 | `README.md` | Install snippet, feature table, MSRV, platform support, or comparison table changes |
+| `rustfs-mimalloc/README.md` | Dependency snippet version, feature table, or MSRV changes |
+| `rustfs-mimalloc-sys/README.md` | Dependency snippet version, feature table, or MSRV changes |
 | `.github/workflows/ci.yml` | MSRV, feature matrix, musl setup, lint, docs, or bench gates change |
 | `.github/workflows/release.yml` | Release gates, publish order, dry-run behavior, or release-note generation changes |
 | `.agents/skills/release.md` | Any release process rule changes |
@@ -68,6 +70,8 @@ For a release version bump, update:
 - `Cargo.toml`: `workspace.dependencies.rustfs-mimalloc-sys.version`
 - `CHANGELOG.md`: move relevant `Unreleased` entries under `## [<VERSION>] - <YYYY-MM-DD>`
 - `README.md`: dependency snippet if the recommended version changes
+- `rustfs-mimalloc/README.md`: dependency snippet version (e.g., `rustfs-mimalloc = "<VERSION>"`)
+- `rustfs-mimalloc-sys/README.md`: dependency snippet version (e.g., `rustfs-mimalloc-sys = "<VERSION>"`)
 - `Cargo.lock`: only if Cargo changes it after validation
 
 Do not add direct `version = "..."` fields to the member crate manifests unless the workspace inheritance model changes.
