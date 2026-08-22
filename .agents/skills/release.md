@@ -47,7 +47,7 @@ The two crates inherit their package version from the workspace:
 # Cargo.toml
 [workspace.package]
 version = "<VERSION>"
-rust-version = "1.96.0"
+rust-version = "1.85.0"
 ```
 
 The wrapper's registry dependency requirement for the sys crate is also in the workspace root:
@@ -108,7 +108,7 @@ Run these checks before tagging. Stop on the first failure and report the exact 
 
 ```bash
 cargo fmt --all --check
-cargo +1.96.0 check --workspace --all-targets
+cargo check --workspace --all-targets
 cargo test --workspace
 cargo test --workspace --features secure,debug
 cargo clippy --workspace --all-targets --all-features -- -D warnings

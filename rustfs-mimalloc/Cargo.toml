@@ -9,6 +9,7 @@ authors.workspace = true
 description = "High-performance mimalloc V3 global allocator for Rust"
 keywords.workspace = true
 categories.workspace = true
+readme = "README.md"
 
 [features]
 default = []
@@ -21,8 +22,6 @@ debug_in_debug = ["rustfs-mimalloc-sys/debug_in_debug"]
 override = ["rustfs-mimalloc-sys/override"]
 # TLS model option
 local_dynamic_tls = ["rustfs-mimalloc-sys/local_dynamic_tls"]
-# Windows direct TLS fast path
-win_direct_tls = ["rustfs-mimalloc-sys/win_direct_tls"]
 # Disable THP
 no_thp = ["rustfs-mimalloc-sys/no_thp"]
 

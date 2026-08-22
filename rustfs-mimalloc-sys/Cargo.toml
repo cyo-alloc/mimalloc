@@ -9,6 +9,7 @@ authors.workspace = true
 description = "Low-level FFI bindings to mimalloc V3"
 keywords.workspace = true
 categories.workspace = true
+readme = "README.md"
 links = "mimalloc"
 build = "build.rs"
 
@@ -25,12 +26,8 @@ override = []
 # Use local-dynamic TLS model instead of initial-exec
 # Fixes compatibility issues with some projects (e.g., polars)
 local_dynamic_tls = []
-# Optimize Windows TLS access when direct TLS slots are known to be available
-win_direct_tls = []
 # Disable Transparent Huge Pages on Linux/Android
 no_thp = []
 
 [build-dependencies]
 cc = "1.4.4"
-
-[dev-dependencies]
