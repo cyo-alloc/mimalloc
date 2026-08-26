@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Exposed mimalloc V3's `mi_thread_set_in_threadpool()` through `rustfs-mimalloc-sys` and added a safe `rustfs_mimalloc::set_current_thread_in_threadpool()` wrapper.
+
 ### Fixed
 
 - Ensure GitHub workflows check out the mimalloc submodule recursively so CI builds can find `c_src/mimalloc/src/static.c`.

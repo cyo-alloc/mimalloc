@@ -12,7 +12,7 @@ mod ffi;
 
 pub mod heap;
 
-pub use api::ProcessInfo;
+pub use api::{ProcessInfo, set_current_thread_in_threadpool};
 
 use core::alloc::{GlobalAlloc, Layout};
 use core::ffi::c_void;

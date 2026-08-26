@@ -144,6 +144,7 @@ unsafe extern "C" {
 
 unsafe extern "C" {
     pub fn mi_collect(force: bool);
+    pub fn mi_thread_set_in_threadpool();
     pub fn mi_version() -> c_int;
     pub fn mi_process_info_print_out(out: Option<mi_output_fun>, arg: *mut c_void);
     pub fn mi_process_info(

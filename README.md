@@ -109,6 +109,16 @@ MiMalloc::option_enable(mi_option_t::mi_option_show_errors);
 MiMalloc::option_disable(mi_option_t::mi_option_show_errors);
 ```
 
+### Threadpool Hint
+
+```rust
+rustfs_mimalloc::set_current_thread_in_threadpool();
+```
+
+Call this from custom thread-pool worker threads to tell mimalloc that the
+current thread can run arbitrary tasks. This is a thin wrapper around mimalloc
+V3's `mi_thread_set_in_threadpool()` API.
+
 ### Heap Management
 
 ```rust

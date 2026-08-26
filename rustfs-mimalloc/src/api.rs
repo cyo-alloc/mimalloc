@@ -3,6 +3,17 @@
 use crate::MiMalloc;
 use core::ffi::c_void;
 
+/// Mark the current thread as part of a thread pool for mimalloc.
+///
+/// This is a safe wrapper around mimalloc V3's `mi_thread_set_in_threadpool`.
+/// The upstream API takes no pointers, only updates the current thread's
+/// mimalloc thread-local state, and is intended to be called by custom
+/// thread-pool worker threads. Repeated calls keep the same threadpool marker.
+#[inline]
+pub fn set_current_thread_in_threadpool() {
+    unsafe { rustfs_mimalloc_sys::mi_thread_set_in_threadpool() }
+}
+
 /// Process memory information returned by [`MiMalloc::process_info`].
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ProcessInfo {
@@ -184,6 +195,12 @@ mod tests {
     fn process_info_smoke() {
         let info = MiMalloc::process_info();
         let _ = info;
+    }
+
+    #[test]
+    fn set_current_thread_in_threadpool_smoke() {
+        set_current_thread_in_threadpool();
+        set_current_thread_in_threadpool();
     }
 
     #[test]

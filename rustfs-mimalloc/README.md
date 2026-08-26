@@ -56,6 +56,14 @@ let info    = MiMalloc::process_info();  // ProcessInfo struct
 MiMalloc::option_set(mi_option_t::mi_option_purge_delay, 0);
 ```
 
+### Threadpool Hint
+
+```rust
+rustfs_mimalloc::set_current_thread_in_threadpool();
+```
+
+Call this from custom thread-pool worker threads to set mimalloc's current-thread threadpool marker.
+
 ### Heap & Arena
 
 ```rust
