@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-08-26
+
 ### Added
 
 - Exposed mimalloc V3's `mi_thread_set_in_threadpool()` through `rustfs-mimalloc-sys` and added a safe `rustfs_mimalloc::set_current_thread_in_threadpool()` wrapper.
@@ -81,7 +83,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Release workflow: tag-triggered + manual dispatch, crates.io publish, GitHub Release.
 - 22 unit tests + 2 doc-tests + allocation benchmarks.
 
-[Unreleased]: https://github.com/houseme/rustfs-mimalloc/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/houseme/rustfs-mimalloc/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/houseme/rustfs-mimalloc/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/houseme/rustfs-mimalloc/compare/v0.3.0...v0.5.0
 [0.3.0]: https://github.com/houseme/rustfs-mimalloc/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/houseme/rustfs-mimalloc/compare/v0.1.0...v0.2.0

@@ -121,8 +121,15 @@ cargo test --workspace --features secure,debug
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo doc --workspace --no-deps
 cargo package -p rustfs-mimalloc-sys --allow-dirty
-cargo package -p rustfs-mimalloc --allow-dirty
+cargo package -p rustfs-mimalloc --allow-dirty --config 'patch.crates-io.rustfs-mimalloc-sys.path="rustfs-mimalloc-sys"'
 ```
+
+The wrapper crate depends on the exact sys crate release version. Before
+`rustfs-mimalloc-sys` is published, a plain wrapper `cargo package --verify`
+cannot resolve that version from the registry. Use the temporary local
+`patch.crates-io` config above for pre-tag verification; the release workflow
+still publishes `rustfs-mimalloc-sys` first and then publishes the wrapper
+against the real registry version.
 
 For musl validation, run this only when the host has a musl C compiler installed:
 
