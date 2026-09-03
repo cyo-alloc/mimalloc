@@ -49,9 +49,11 @@ jobs:
             echo "::error::No version provided. Use workflow_dispatch input or push a v* tag."
             exit 1
           fi
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-          echo "is_dry_run=${{ inputs.dry_run || false }}" >> "$GITHUB_OUTPUT"
+          {
+            echo "version=${VERSION}"
+            echo "tag=${TAG}"
+            echo "is_dry_run=${{ inputs.dry_run || false }}"
+          } >> "$GITHUB_OUTPUT"
           echo "Releasing version: ${VERSION} (tag: ${TAG})"
 
       - name: Verify version consistency
@@ -179,31 +181,120 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          fetch-depth: 0
+          fetch-tags: true
           submodules: recursive
 
       - name: Generate changelog
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          REPOSITORY: ${{ github.repository }}
         run: |
-          # Get previous tag
-          PREV_TAG=$(git tag --sort=-v:refname | grep '^v[0-9]' | sed -n '2p')
-          if [ -z "${PREV_TAG}" ]; then
-            CHANGES="Initial release."
-          else
-            CHANGES=$(git log --pretty=format:"- %s (%h)" "${PREV_TAG}..HEAD" --no-merges)
+          set -euo pipefail
+
+          python3 <<'PY'
+          import os
+          import re
+          import subprocess
+          from pathlib import Path
+
+          release_version = os.environ["RELEASE_VERSION"]
+          release_tag = os.environ["RELEASE_TAG"]
+          repository = os.environ["REPOSITORY"]
+
+          def git_output(*args: str) -> str:
+              result = subprocess.run(
+                  ["git", *args],
+                  check=False,
+                  stdout=subprocess.PIPE,
+                  stderr=subprocess.DEVNULL,
+                  text=True,
+              )
+              return result.stdout.strip()
+
+          def previous_tag() -> str:
+              tag_parent = f"{release_tag}^"
+              tag_previous = git_output("describe", "--tags", "--abbrev=0", tag_parent)
+              if tag_previous:
+                  return tag_previous
+              return git_output("describe", "--tags", "--abbrev=0", "HEAD^")
+
+          changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
+          section_pattern = re.compile(
+              rf"^## \[{re.escape(release_version)}\][^\n]*\n"
+              rf"(?P<body>.*?)(?=^## \[|^\[[^\]]+\]:\s|\Z)",
+              re.MULTILINE | re.DOTALL,
+          )
+          section_match = section_pattern.search(changelog)
+          release_body = section_match.group("body").strip() if section_match else ""
+
+          prev_tag = previous_tag()
+          if not release_body:
+              if prev_tag:
+                  commits = git_output(
+                      "log",
+                      '--pretty=format:- %s (%h)',
+                      f"{prev_tag}..HEAD",
+                      "--no-merges",
+                  )
+                  release_body = "### Changes\n\n" + (commits or "- No user-facing changes recorded.")
+              else:
+                  if release_version != "0.1.0":
+                      raise SystemExit(
+                          "refusing to emit Initial release for a non-initial version; "
+                          "check checkout tag history and CHANGELOG.md"
+                      )
+                  release_body = "### Changes\n\nInitial release."
+
+          header = Path("rustfs-mimalloc-sys/c_src/mimalloc/include/mimalloc.h")
+          header_text = header.read_text(encoding="utf-8")
+          version_match = re.search(r"^\s*#define\s+MI_MALLOC_VERSION\s+(\d+)", header_text, re.MULTILINE)
+          if not version_match:
+              raise SystemExit(f"MI_MALLOC_VERSION not found in {header}")
+
+          mimalloc_number = int(version_match.group(1))
+          mimalloc_version = f"v{mimalloc_number // 10000}.{mimalloc_number // 100 % 100}.{mimalloc_number % 100}"
+
+          notes = [
+              f"## rustfs-mimalloc v{release_version}",
+              "",
+              f"mimalloc V3 ({mimalloc_version}) bindings for Rust.",
+              "",
+              release_body,
+              "",
+              "### Installation",
+              "",
+              "```toml",
+              "[dependencies]",
+              f'rustfs-mimalloc = "{release_version}"',
+              "```",
+          ]
+
+          if prev_tag:
+              compare_url = f"https://github.com/{repository}/compare/{prev_tag}...{release_tag}"
+              notes.extend(["", f"**Full Changelog**: [{prev_tag}...{release_tag}]({compare_url})"])
+
+          Path("/tmp/release-notes.md").write_text("\n".join(notes).rstrip() + "\n", encoding="utf-8")
+          print(f"Release notes generated for {release_tag}; previous tag: {prev_tag or '<none>'}")
+          PY
+
+          cat /tmp/release-notes.md
+
+      - name: Validate release notes
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          test -s /tmp/release-notes.md
+          grep -F "## rustfs-mimalloc v${RELEASE_VERSION}" /tmp/release-notes.md
+          grep -F "mimalloc V3 (v" /tmp/release-notes.md
+
+          if [ "${RELEASE_VERSION}" != "0.1.0" ] && grep -Fxq "Initial release." /tmp/release-notes.md; then
+            echo "::error::Non-initial releases must not publish placeholder release notes."
+            exit 1
           fi
-          cat > /tmp/release-notes.md <<EOF
-          ## rustfs-mimalloc v${{ needs.prepare.outputs.version }}
-
-          mimalloc V3 (v3.5.0) bindings for Rust.
-
-          ### Changes
-          ${CHANGES}
-
-          ### Installation
-          \`\`\`toml
-          [dependencies]
-          rustfs-mimalloc = "${{ needs.prepare.outputs.version }}"
-          \`\`\`
-          EOF
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
@@ -213,7 +304,7 @@ jobs:
           body_path: /tmp/release-notes.md
           draft: false
           prerelease: ${{ contains(needs.prepare.outputs.version, '-') }}
-          generate_release_notes: true
+          generate_release_notes: false
 
   # ── Dry run summary ────────────────────────────────────────────────────────
 
@@ -225,11 +316,13 @@ jobs:
     steps:
       - name: Summary
         run: |
-          echo "## 🏷️ Dry Run Complete" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Version**: \`${{ needs.prepare.outputs.version }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Tag**: \`${{ needs.prepare.outputs.tag }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Tests: ✅ passed" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Lint: ✅ passed" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "To publish for real, re-run with **dry_run** unchecked." >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "## 🏷️ Dry Run Complete"
+            echo ""
+            echo "- **Version**: \`${{ needs.prepare.outputs.version }}\`"
+            echo "- **Tag**: \`${{ needs.prepare.outputs.tag }}\`"
+            echo "- Tests: ✅ passed"
+            echo "- Lint: ✅ passed"
+            echo ""
+            echo "To publish for real, re-run with **dry_run** unchecked."
+          } >> "$GITHUB_STEP_SUMMARY"
