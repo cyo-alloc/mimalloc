@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-09-03
+
+### Changed
+
+- Updated the mimalloc submodule to upstream v3.5.1 (commit `34fbd7e`).
+- Updated the exposed build metadata version to `30501`.
+
+### Added
+
+- Exposed mimalloc V3.5.1's `mi_free_small_nonnull` binding.
+- Added Rust inline mirrors for `mi_free_csize` and `mi_free_csize_nonnull`.
+- Added unsafe `MiMalloc` wrappers for small and constant-size free fast paths.
+
 ## [0.5.1] - 2026-08-26
 
 ### Added
@@ -83,7 +96,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Release workflow: tag-triggered + manual dispatch, crates.io publish, GitHub Release.
 - 22 unit tests + 2 doc-tests + allocation benchmarks.
 
-[Unreleased]: https://github.com/houseme/rustfs-mimalloc/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/houseme/rustfs-mimalloc/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/houseme/rustfs-mimalloc/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/houseme/rustfs-mimalloc/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/houseme/rustfs-mimalloc/compare/v0.3.0...v0.5.0
 [0.3.0]: https://github.com/houseme/rustfs-mimalloc/compare/v0.2.0...v0.3.0

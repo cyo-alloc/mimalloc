@@ -4,7 +4,7 @@
 [![Documentation](https://docs.rs/rustfs-mimalloc-sys/badge.svg)](https://docs.rs/rustfs-mimalloc-sys)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](../LICENSE)
 
-Low-level FFI bindings to [mimalloc](https://github.com/microsoft/mimalloc) V3 (v3.5.0).
+Low-level FFI bindings to [mimalloc](https://github.com/microsoft/mimalloc) V3 (v3.5.1).
 
 For a safe, ergonomic wrapper, use [`rustfs-mimalloc`](https://crates.io/crates/rustfs-mimalloc).
 
@@ -12,7 +12,7 @@ For a safe, ergonomic wrapper, use [`rustfs-mimalloc`](https://crates.io/crates/
 
 ```toml
 [dependencies]
-rustfs-mimalloc-sys = "0.5.1"
+rustfs-mimalloc-sys = "0.5.2"
 ```
 
 ```rust
@@ -41,6 +41,8 @@ This crate vendors the mimalloc V3 C source and compiles it via the `cc` crate. 
 - Static linking — no runtime dependencies
 - Platform-specific flags handled automatically (Windows libs, musl compat, TLS model)
 - `links = "mimalloc"` — exports `DEP_MIMALLOC_INCLUDE` for downstream C/C++ crates
+- V3.5.1 small free APIs, including `mi_free_small_nonnull` and inline Rust
+  mirrors for `mi_free_csize` / `mi_free_csize_nonnull`
 
 ## MSRV
 

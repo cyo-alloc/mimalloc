@@ -10,7 +10,7 @@ High-performance [mimalloc](https://github.com/microsoft/mimalloc) V3 global all
 
 ## Overview
 
-`rustfs-mimalloc` provides safe, ergonomic Rust bindings to Microsoft's mimalloc V3 memory allocator (v3.5.0). Drop-in replacement for the system allocator with excellent multi-threaded performance.
+`rustfs-mimalloc` provides safe, ergonomic Rust bindings to Microsoft's mimalloc V3 memory allocator (v3.5.1). Drop-in replacement for the system allocator with excellent multi-threaded performance.
 
 ### Why this crate?
 
@@ -25,7 +25,7 @@ High-performance [mimalloc](https://github.com/microsoft/mimalloc) V3 global all
 
 ```toml
 [dependencies]
-rustfs-mimalloc = "0.5.1"
+rustfs-mimalloc = "0.5.2"
 ```
 
 ```rust
@@ -72,7 +72,7 @@ Implements `GlobalAlloc` with `alloc`, `alloc_zeroed`, `dealloc`, `realloc` — 
 use rustfs_mimalloc::MiMalloc;
 use rustfs_mimalloc_sys::mi_option_t;
 
-// Version: 30500 = V3.5.0
+// Version: 30501 = V3.5.1
 let version = MiMalloc::version();
 
 // Stats as JSON
@@ -108,6 +108,26 @@ let delay = MiMalloc::option_get(mi_option_t::mi_option_purge_delay);
 MiMalloc::option_enable(mi_option_t::mi_option_show_errors);
 MiMalloc::option_disable(mi_option_t::mi_option_show_errors);
 ```
+
+### Small Free Fast Paths
+
+```rust
+use core::ptr::NonNull;
+use rustfs_mimalloc::{MI_SMALL_SIZE_MAX, MiMalloc};
+use rustfs_mimalloc_sys::mi_malloc_small;
+
+unsafe {
+    let ptr = NonNull::new(mi_malloc_small(64) as *mut u8).expect("allocation failed");
+    assert!(64 <= MI_SMALL_SIZE_MAX);
+    MiMalloc::free_small_nonnull(ptr);
+}
+```
+
+Use `MiMalloc::free_csize`, `free_csize_nonnull`, `free_small`, and
+`free_small_nonnull` only when the original allocation size is known and the
+pointer was allocated by mimalloc. These mirror mimalloc V3.5.1's small and
+constant-size free fast paths for language runtimes and other allocation-heavy
+systems.
 
 ### Threadpool Hint
 
@@ -155,7 +175,7 @@ let heap = heap::Heap::new_in_arena(arena).expect("failed to create heap");
 
 | Aspect | `rustfs-mimalloc` | `mimalloc` crate |
 |--------|-------------------|-------------------|
-| mimalloc version | V3 only (v3.5.0) | V2/V3 (configurable) |
+| mimalloc version | V3 only (v3.5.1) | V2/V3 (configurable) |
 | Alignment | Always aligned | Conditional |
 | TLS model | Configurable | Forced `initial-exec` |
 | Stats API | JSON + text + struct | JSON only |

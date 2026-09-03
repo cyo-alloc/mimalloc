@@ -10,7 +10,7 @@ High-performance [mimalloc](https://github.com/microsoft/mimalloc) V3 global all
 
 ```toml
 [dependencies]
-rustfs-mimalloc = "0.5.1"
+rustfs-mimalloc = "0.5.2"
 ```
 
 ```rust
@@ -48,13 +48,20 @@ fn main() {
 use rustfs_mimalloc::MiMalloc;
 use rustfs_mimalloc_sys::mi_option_t;
 
-let version = MiMalloc::version();       // 30500 = V3.5.0
+let version = MiMalloc::version();       // 30501 = V3.5.1
 let json    = MiMalloc::stats_json();    // stats as JSON
 let text    = MiMalloc::stats_print();   // stats as text
 let info    = MiMalloc::process_info();  // ProcessInfo struct
 
 MiMalloc::option_set(mi_option_t::mi_option_purge_delay, 0);
 ```
+
+### Small Free Fast Paths
+
+`MiMalloc::free_csize`, `free_csize_nonnull`, `free_small`, and
+`free_small_nonnull` expose mimalloc V3.5.1's small and constant-size free fast
+paths. These APIs are unsafe: the pointer must come from mimalloc, and the
+caller must preserve the original allocation size contract.
 
 ### Threadpool Hint
 

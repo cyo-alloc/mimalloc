@@ -2,6 +2,7 @@
 
 use crate::MiMalloc;
 use core::ffi::c_void;
+use core::ptr::NonNull;
 
 /// Mark the current thread as part of a thread pool for mimalloc.
 ///
@@ -47,6 +48,50 @@ impl MiMalloc {
     #[inline]
     pub unsafe fn usable_size(ptr: *const u8) -> usize {
         unsafe { rustfs_mimalloc_sys::mi_usable_size(ptr as *const c_void) }
+    }
+
+    /// Free a mimalloc block when the allocation size is known.
+    ///
+    /// For small sizes this uses mimalloc's small-free fast path.
+    ///
+    /// # Safety
+    /// `ptr` must be null or a valid mimalloc allocation, and `size` must be
+    /// the allocation size used for the corresponding allocation.
+    #[inline]
+    pub unsafe fn free_csize(ptr: *mut u8, size: usize) {
+        unsafe { rustfs_mimalloc_sys::mi_free_csize(ptr as *mut c_void, size) }
+    }
+
+    /// Free a non-null mimalloc block when the allocation size is known.
+    ///
+    /// For small sizes this uses mimalloc's non-null small-free fast path.
+    ///
+    /// # Safety
+    /// `ptr` must be a valid mimalloc allocation, and `size` must be the
+    /// allocation size used for the corresponding allocation.
+    #[inline]
+    pub unsafe fn free_csize_nonnull(ptr: NonNull<u8>, size: usize) {
+        unsafe { rustfs_mimalloc_sys::mi_free_csize_nonnull(ptr.as_ptr() as *mut c_void, size) }
+    }
+
+    /// Free a small mimalloc block.
+    ///
+    /// # Safety
+    /// `ptr` must be null or a valid mimalloc allocation whose allocation size
+    /// is less than or equal to [`crate::MI_SMALL_SIZE_MAX`].
+    #[inline]
+    pub unsafe fn free_small(ptr: *mut u8) {
+        unsafe { rustfs_mimalloc_sys::mi_free_small(ptr as *mut c_void) }
+    }
+
+    /// Free a non-null small mimalloc block.
+    ///
+    /// # Safety
+    /// `ptr` must be a valid mimalloc allocation whose allocation size is less
+    /// than or equal to [`crate::MI_SMALL_SIZE_MAX`].
+    #[inline]
+    pub unsafe fn free_small_nonnull(ptr: NonNull<u8>) {
+        unsafe { rustfs_mimalloc_sys::mi_free_small_nonnull(ptr.as_ptr() as *mut c_void) }
     }
 
     /// Process memory information.
@@ -158,7 +203,7 @@ mod tests {
 
     #[test]
     fn version_is_v3() {
-        assert!(MiMalloc::version() >= 30500, "expected >= V3.5.0");
+        assert!(MiMalloc::version() >= 30501, "expected >= V3.5.1");
     }
 
     #[test]
@@ -209,6 +254,28 @@ mod tests {
             let ptr = rustfs_mimalloc_sys::mi_malloc(64);
             assert!(MiMalloc::usable_size(ptr as *const u8) >= 64);
             rustfs_mimalloc_sys::mi_free(ptr);
+        }
+    }
+
+    #[test]
+    fn free_small_nonnull_smoke() {
+        unsafe {
+            let ptr = rustfs_mimalloc_sys::mi_malloc_small(64);
+            let ptr = NonNull::new(ptr as *mut u8).expect("mi_malloc_small returned null");
+            MiMalloc::free_small_nonnull(ptr);
+        }
+    }
+
+    #[test]
+    fn free_csize_routes_small_and_large() {
+        unsafe {
+            let small = rustfs_mimalloc_sys::mi_malloc_small(64);
+            MiMalloc::free_csize(small as *mut u8, 64);
+
+            let large_size = rustfs_mimalloc_sys::MI_SMALL_SIZE_MAX + 64;
+            let large = rustfs_mimalloc_sys::mi_malloc(large_size);
+            let large = NonNull::new(large as *mut u8).expect("mi_malloc returned null");
+            MiMalloc::free_csize_nonnull(large, large_size);
         }
     }
 }

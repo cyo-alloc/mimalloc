@@ -1,4 +1,4 @@
-//! Low-level FFI bindings to [mimalloc](https://github.com/microsoft/mimalloc) V3 (v3.5.0).
+//! Low-level FFI bindings to [mimalloc](https://github.com/microsoft/mimalloc) V3 (v3.5.1).
 //!
 //! For a safe wrapper, use the `rustfs-mimalloc` crate.
 
@@ -10,6 +10,14 @@
 pub use core::ffi::{c_char, c_int, c_long, c_void};
 
 pub type size_t = usize;
+
+// ── Constants ──────────────────────────────────────────────────────────────
+
+/// Maximum word count for mimalloc's small allocation fast path.
+pub const MI_SMALL_WSIZE_MAX: size_t = 128;
+
+/// Maximum byte size for mimalloc's small allocation fast path.
+pub const MI_SMALL_SIZE_MAX: size_t = MI_SMALL_WSIZE_MAX * core::mem::size_of::<*mut c_void>();
 
 // ── Opaque types ────────────────────────────────────────────────────────────
 
@@ -35,7 +43,7 @@ pub type mi_arena_id_t = *mut c_void;
 
 // ── Option enum ─────────────────────────────────────────────────────────────
 //
-// Kept in sync with mimalloc V3.5.0 `mi_option_e` in `mimalloc.h`.
+// Kept in sync with mimalloc V3.5.1 `mi_option_e` in `mimalloc.h`.
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -129,6 +137,41 @@ unsafe extern "C" {
     pub fn mi_good_size(size: size_t) -> size_t;
     pub fn mi_free_size(p: *mut c_void, size: size_t);
     pub fn mi_free_small(p: *mut c_void);
+    pub fn mi_free_small_nonnull(p: *mut c_void);
+}
+
+/// Free an allocation when the size is statically known by the caller.
+///
+/// This mirrors mimalloc's inline `mi_free_csize` helper.
+///
+/// # Safety
+///
+/// `p` must be null or a valid mimalloc allocation, and `size` must be the
+/// allocation size used for the corresponding allocation.
+#[inline]
+pub unsafe fn mi_free_csize(p: *mut c_void, size: size_t) {
+    if size <= MI_SMALL_SIZE_MAX {
+        unsafe { mi_free_small(p) };
+    } else {
+        unsafe { mi_free(p) };
+    }
+}
+
+/// Free a non-null allocation when the size is statically known by the caller.
+///
+/// This mirrors mimalloc's inline `mi_free_csize_nonnull` helper.
+///
+/// # Safety
+///
+/// `p` must be a non-null valid mimalloc allocation, and `size` must be the
+/// allocation size used for the corresponding allocation.
+#[inline]
+pub unsafe fn mi_free_csize_nonnull(p: *mut c_void, size: size_t) {
+    if size <= MI_SMALL_SIZE_MAX {
+        unsafe { mi_free_small_nonnull(p) };
+    } else {
+        unsafe { mi_free(p) };
+    }
 }
 
 // ── Aligned allocation ──────────────────────────────────────────────────────

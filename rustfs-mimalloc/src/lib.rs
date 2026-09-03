@@ -13,6 +13,7 @@ mod ffi;
 pub mod heap;
 
 pub use api::{ProcessInfo, set_current_thread_in_threadpool};
+pub use rustfs_mimalloc_sys::{MI_SMALL_SIZE_MAX, MI_SMALL_WSIZE_MAX};
 
 use core::alloc::{GlobalAlloc, Layout};
 use core::ffi::c_void;

@@ -115,7 +115,7 @@ fn main() {
     println!("cargo:include={manifest_dir}/c_src/mimalloc/include");
 
     // Print version info
-    println!("cargo:version=30500"); // MI_MALLOC_VERSION from mimalloc.h
+    println!("cargo:version=30501"); // MI_MALLOC_VERSION from mimalloc.h
 }
 
 /// Link required system libraries based on the target platform.
