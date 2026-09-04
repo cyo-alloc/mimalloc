@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-09-04
+
+### Fixed
+
+- Avoid passing MSVC-only compiler flags to Windows GNU/LLVM targets such as
+  `x86_64-pc-windows-gnullvm`.
+
+### Changed
+
+- Centralized build-script target detection around Cargo's structured
+  `CARGO_CFG_TARGET_*` values to keep OS, ABI, architecture, and vendor checks
+  distinct.
+
 ## [0.5.2] - 2026-09-03
 
 ### Changed
@@ -96,7 +109,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Release workflow: tag-triggered + manual dispatch, crates.io publish, GitHub Release.
 - 22 unit tests + 2 doc-tests + allocation benchmarks.
 
-[Unreleased]: https://github.com/houseme/rustfs-mimalloc/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/houseme/rustfs-mimalloc/compare/v0.5.3...HEAD
+[0.5.3]: https://github.com/houseme/rustfs-mimalloc/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/houseme/rustfs-mimalloc/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/houseme/rustfs-mimalloc/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/houseme/rustfs-mimalloc/compare/v0.3.0...v0.5.0

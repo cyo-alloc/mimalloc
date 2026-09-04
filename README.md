@@ -25,7 +25,7 @@ High-performance [mimalloc](https://github.com/microsoft/mimalloc) V3 global all
 
 ```toml
 [dependencies]
-rustfs-mimalloc = "0.5.2"
+rustfs-mimalloc = "0.5.3"
 ```
 
 ```rust
