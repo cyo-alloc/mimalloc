@@ -5,8 +5,53 @@
 
 use std::env;
 
+struct TargetCfg {
+    triple: String,
+    arch: String,
+    env: String,
+    os: String,
+    vendor: String,
+}
+
+impl TargetCfg {
+    fn from_env() -> Self {
+        Self {
+            triple: env::var("TARGET").unwrap_or_default(),
+            arch: env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default(),
+            env: env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default(),
+            os: env::var("CARGO_CFG_TARGET_OS").unwrap_or_default(),
+            vendor: env::var("CARGO_CFG_TARGET_VENDOR").unwrap_or_default(),
+        }
+    }
+
+    fn is_apple(&self) -> bool {
+        self.vendor == "apple"
+    }
+
+    fn is_msvc(&self) -> bool {
+        self.env == "msvc"
+    }
+
+    fn is_musl(&self) -> bool {
+        self.env == "musl"
+    }
+
+    fn is_windows(&self) -> bool {
+        self.os == "windows"
+    }
+
+    fn supports_initial_exec_tls(&self) -> bool {
+        self.is_apple() || matches!(self.os.as_str(), "linux" | "freebsd")
+    }
+
+    fn needs_armv6_atomic(&self) -> bool {
+        self.arch == "arm"
+            && (self.triple.starts_with("armv6") || self.triple.starts_with("arm-unknown"))
+    }
+}
+
 fn main() {
-    let target = env::var("TARGET").unwrap_or_default();
+    let target = TargetCfg::from_env();
     let is_debug = env::var("PROFILE").as_deref() == Ok("debug");
 
     // Tell Cargo to re-run if features change
@@ -54,11 +99,11 @@ fn main() {
     // See: https://github.com/purpleprotocol/mimalloc_rust/issues/138
     if env::var_os("CARGO_FEATURE_LOCAL_DYNAMIC_TLS").is_some() {
         build.flag_if_supported("-ftls-model=local-dynamic");
-    } else if target.contains("apple") || target.contains("linux") || target.contains("freebsd") {
+    } else if target.supports_initial_exec_tls() {
         build.flag_if_supported("-ftls-model=initial-exec");
     }
 
-    if target.contains("windows") && env::var_os("CARGO_FEATURE_WIN_DIRECT_TLS").is_some() {
+    if target.is_windows() && env::var_os("CARGO_FEATURE_WIN_DIRECT_TLS").is_some() {
         build.define("MI_WIN_DIRECT_TLS", "1");
     }
 
@@ -70,13 +115,13 @@ fn main() {
 
     // macOS: enable dyld interposing for proper override support
     // See: https://github.com/purpleprotocol/mimalloc_rust/pull/145
-    if target.contains("apple") && env::var_os("CARGO_FEATURE_OVERRIDE").is_some() {
+    if target.is_apple() && env::var_os("CARGO_FEATURE_OVERRIDE").is_some() {
         build.define("MI_OSX_ZONE", "1");
         build.define("MI_OSX_INTERPOSE", "1");
     }
 
     // Platform-specific compiler flags
-    if target.contains("msvc") {
+    if target.is_msvc() {
         // MSVC: use correct runtime library based on debug/release
         // See: https://github.com/purpleprotocol/mimalloc_rust/pull/167
         if is_debug {
@@ -95,7 +140,7 @@ fn main() {
 
         // Fix musl + release build failures with __DATE__ / __TIME__ macros
         // See: https://github.com/purpleprotocol/mimalloc_rust/pull/139
-        if target.contains("musl") {
+        if target.is_musl() {
             build.flag_if_supported("-Wno-error=date-time");
         }
     }
@@ -119,8 +164,8 @@ fn main() {
 }
 
 /// Link required system libraries based on the target platform.
-fn link_system_libs(target: &str) {
-    if target.contains("windows") {
+fn link_system_libs(target: &TargetCfg) {
+    if target.is_windows() {
         // Windows: required for crypto (BCryptGenRandom), process info (psapi),
         // and token manipulation (advapi32 for large pages)
         // See: https://github.com/purpleprotocol/mimalloc_rust/issues/135
@@ -133,7 +178,7 @@ fn link_system_libs(target: &str) {
 
     // ARMv6: needs libatomic for 64-bit atomic operations
     // See: https://github.com/purpleprotocol/mimalloc_rust/pull/115
-    if target.contains("armv6") || target.contains("arm-unknown") {
+    if target.needs_armv6_atomic() {
         println!("cargo:rustc-link-lib=atomic");
     }
 }
