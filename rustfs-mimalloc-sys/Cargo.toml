@@ -41,4 +41,4 @@ local_dynamic_tls = []
 no_thp = []
 
 [build-dependencies]
-cc = "1.4.4"
+cc = { workspace = true }
