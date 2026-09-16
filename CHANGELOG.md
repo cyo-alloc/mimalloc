@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.4] - 2026-09-16
+
+### Changed
+
+- Updated the mimalloc submodule to upstream v3.5.2 (commit `636510a`).
+- Updated the exposed build metadata version to `30502`.
+
+### Added
+
+- Exposed mimalloc V3.5.2's word-size small allocation APIs:
+  `mi_wmalloc_small`, `mi_wzalloc_small`, `mi_wsize_from_size`,
+  `mi_malloc_csize`, `mi_zalloc_csize`, `mi_theap_wmalloc_small`,
+  `mi_theap_wzalloc_small`, `mi_theap_malloc_csize`, and
+  `mi_theap_zalloc_csize`.
+- Added unsafe `MiMalloc` wrappers for constant-size and word-size small
+  allocation fast paths.
+- Exposed `mi_option_collect_merges_stats` and
+  `mi_theap_stats_merge_to_heap` through `rustfs-mimalloc-sys`.
+- Exposed mimalloc's experimental profiling hooks in `rustfs-mimalloc-sys`
+  as raw FFI only.
+
 ## [0.5.3] - 2026-09-04
 
 ### Fixed
@@ -109,7 +130,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Release workflow: tag-triggered + manual dispatch, crates.io publish, GitHub Release.
 - 22 unit tests + 2 doc-tests + allocation benchmarks.
 
-[Unreleased]: https://github.com/houseme/rustfs-mimalloc/compare/v0.5.3...HEAD
+[Unreleased]: https://github.com/houseme/rustfs-mimalloc/compare/v0.5.4...HEAD
+[0.5.4]: https://github.com/houseme/rustfs-mimalloc/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/houseme/rustfs-mimalloc/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/houseme/rustfs-mimalloc/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/houseme/rustfs-mimalloc/compare/v0.5.0...v0.5.1

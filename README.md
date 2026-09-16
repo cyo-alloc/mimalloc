@@ -10,7 +10,7 @@ High-performance [mimalloc](https://github.com/microsoft/mimalloc) V3 global all
 
 ## Overview
 
-`rustfs-mimalloc` provides safe, ergonomic Rust bindings to Microsoft's mimalloc V3 memory allocator (v3.5.1). Drop-in replacement for the system allocator with excellent multi-threaded performance.
+`rustfs-mimalloc` provides safe, ergonomic Rust bindings to Microsoft's mimalloc V3 memory allocator (v3.5.2). Drop-in replacement for the system allocator with excellent multi-threaded performance.
 
 ### Why this crate?
 
@@ -25,7 +25,7 @@ High-performance [mimalloc](https://github.com/microsoft/mimalloc) V3 global all
 
 ```toml
 [dependencies]
-rustfs-mimalloc = "0.5.3"
+rustfs-mimalloc = "0.5.4"
 ```
 
 ```rust
@@ -72,7 +72,7 @@ Implements `GlobalAlloc` with `alloc`, `alloc_zeroed`, `dealloc`, `realloc` — 
 use rustfs_mimalloc::MiMalloc;
 use rustfs_mimalloc_sys::mi_option_t;
 
-// Version: 30501 = V3.5.1
+// Version: 30502 = V3.5.2
 let version = MiMalloc::version();
 
 // Stats as JSON
@@ -109,25 +109,24 @@ MiMalloc::option_enable(mi_option_t::mi_option_show_errors);
 MiMalloc::option_disable(mi_option_t::mi_option_show_errors);
 ```
 
-### Small Free Fast Paths
+### Small Allocation And Free Fast Paths
 
 ```rust
 use core::ptr::NonNull;
 use rustfs_mimalloc::{MI_SMALL_SIZE_MAX, MiMalloc};
-use rustfs_mimalloc_sys::mi_malloc_small;
 
 unsafe {
-    let ptr = NonNull::new(mi_malloc_small(64) as *mut u8).expect("allocation failed");
+    let ptr = NonNull::new(MiMalloc::malloc_csize(64)).expect("allocation failed");
     assert!(64 <= MI_SMALL_SIZE_MAX);
-    MiMalloc::free_small_nonnull(ptr);
+    MiMalloc::free_csize_nonnull(ptr, 64);
 }
 ```
 
-Use `MiMalloc::free_csize`, `free_csize_nonnull`, `free_small`, and
-`free_small_nonnull` only when the original allocation size is known and the
-pointer was allocated by mimalloc. These mirror mimalloc V3.5.1's small and
-constant-size free fast paths for language runtimes and other allocation-heavy
-systems.
+Use `MiMalloc::malloc_csize`, `zalloc_csize`, `wmalloc_small`, `wzalloc_small`,
+`free_csize`, `free_csize_nonnull`, `free_small`, and `free_small_nonnull` only
+when the original allocation size contract is known and the pointer is managed
+by mimalloc. These mirror mimalloc V3.5.2's small, word-size, and constant-size
+fast paths for language runtimes and other allocation-heavy systems.
 
 ### Threadpool Hint
 
@@ -175,7 +174,7 @@ let heap = heap::Heap::new_in_arena(arena).expect("failed to create heap");
 
 | Aspect | `rustfs-mimalloc` | `mimalloc` crate |
 |--------|-------------------|-------------------|
-| mimalloc version | V3 only (v3.5.1) | V2/V3 (configurable) |
+| mimalloc version | V3 only (v3.5.2) | V2/V3 (configurable) |
 | Alignment | Always aligned | Conditional |
 | TLS model | Configurable | Forced `initial-exec` |
 | Stats API | JSON + text + struct | JSON only |

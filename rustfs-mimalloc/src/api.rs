@@ -50,6 +50,61 @@ impl MiMalloc {
         unsafe { rustfs_mimalloc_sys::mi_usable_size(ptr as *const c_void) }
     }
 
+    /// Convert a byte size to a mimalloc machine-word count.
+    ///
+    /// This mirrors mimalloc's `mi_wsize_from_size` helper for the word-size
+    /// small allocation fast paths.
+    #[inline]
+    pub const fn wsize_from_size(size: usize) -> usize {
+        rustfs_mimalloc_sys::mi_wsize_from_size(size)
+    }
+
+    /// Allocate a mimalloc block when the allocation size is known.
+    ///
+    /// For small sizes this uses mimalloc's word-size small-allocation fast path.
+    ///
+    /// # Safety
+    /// The returned raw pointer must be checked for null and eventually freed
+    /// with a compatible mimalloc free API.
+    #[inline]
+    pub unsafe fn malloc_csize(size: usize) -> *mut u8 {
+        unsafe { rustfs_mimalloc_sys::mi_malloc_csize(size) as *mut u8 }
+    }
+
+    /// Allocate a zeroed mimalloc block when the allocation size is known.
+    ///
+    /// For small sizes this uses mimalloc's word-size small-allocation fast path.
+    ///
+    /// # Safety
+    /// The returned raw pointer must be checked for null and eventually freed
+    /// with a compatible mimalloc free API.
+    #[inline]
+    pub unsafe fn zalloc_csize(size: usize) -> *mut u8 {
+        unsafe { rustfs_mimalloc_sys::mi_zalloc_csize(size) as *mut u8 }
+    }
+
+    /// Allocate a small block by machine-word count.
+    ///
+    /// # Safety
+    /// `wsize` is measured in `usize` machine words, not bytes. The returned raw
+    /// pointer must be checked for null and eventually freed with a compatible
+    /// mimalloc free API.
+    #[inline]
+    pub unsafe fn wmalloc_small(wsize: usize) -> *mut u8 {
+        unsafe { rustfs_mimalloc_sys::mi_wmalloc_small(wsize) as *mut u8 }
+    }
+
+    /// Allocate a zeroed small block by machine-word count.
+    ///
+    /// # Safety
+    /// `wsize` is measured in `usize` machine words, not bytes. The returned raw
+    /// pointer must be checked for null and eventually freed with a compatible
+    /// mimalloc free API.
+    #[inline]
+    pub unsafe fn wzalloc_small(wsize: usize) -> *mut u8 {
+        unsafe { rustfs_mimalloc_sys::mi_wzalloc_small(wsize) as *mut u8 }
+    }
+
     /// Free a mimalloc block when the allocation size is known.
     ///
     /// For small sizes this uses mimalloc's small-free fast path.
@@ -203,7 +258,7 @@ mod tests {
 
     #[test]
     fn version_is_v3() {
-        assert!(MiMalloc::version() >= 30501, "expected >= V3.5.1");
+        assert!(MiMalloc::version() >= 30502, "expected >= V3.5.2");
     }
 
     #[test]
@@ -263,6 +318,59 @@ mod tests {
             let ptr = rustfs_mimalloc_sys::mi_malloc_small(64);
             let ptr = NonNull::new(ptr as *mut u8).expect("mi_malloc_small returned null");
             MiMalloc::free_small_nonnull(ptr);
+        }
+    }
+
+    #[test]
+    fn word_size_small_alloc_smoke() {
+        unsafe {
+            let wsize = MiMalloc::wsize_from_size(64);
+
+            let ptr =
+                NonNull::new(MiMalloc::wmalloc_small(wsize)).expect("wmalloc_small returned null");
+            MiMalloc::free_small_nonnull(ptr);
+
+            let zeroed =
+                NonNull::new(MiMalloc::wzalloc_small(wsize)).expect("wzalloc_small returned null");
+            assert!((0..64).all(|i| *zeroed.as_ptr().add(i) == 0));
+            MiMalloc::free_small_nonnull(zeroed);
+        }
+    }
+
+    #[test]
+    fn csize_alloc_smoke() {
+        unsafe {
+            let ptr = NonNull::new(MiMalloc::malloc_csize(64)).expect("malloc_csize returned null");
+            MiMalloc::free_csize_nonnull(ptr, 64);
+
+            let zeroed =
+                NonNull::new(MiMalloc::zalloc_csize(64)).expect("zalloc_csize returned null");
+            assert!((0..64).all(|i| *zeroed.as_ptr().add(i) == 0));
+            MiMalloc::free_csize_nonnull(zeroed, 64);
+        }
+    }
+
+    #[test]
+    fn sys_theap_csize_alloc_smoke() {
+        unsafe {
+            let heap = rustfs_mimalloc_sys::mi_heap_new();
+            assert!(!heap.is_null(), "mi_heap_new returned null");
+
+            let theap = rustfs_mimalloc_sys::mi_heap_theap(heap);
+            assert!(!theap.is_null(), "mi_heap_theap returned null");
+
+            let ptr =
+                NonNull::new(rustfs_mimalloc_sys::mi_theap_malloc_csize(theap, 64) as *mut u8)
+                    .expect("mi_theap_malloc_csize returned null");
+            MiMalloc::free_csize_nonnull(ptr, 64);
+
+            let zeroed =
+                NonNull::new(rustfs_mimalloc_sys::mi_theap_zalloc_csize(theap, 64) as *mut u8)
+                    .expect("mi_theap_zalloc_csize returned null");
+            assert!((0..64).all(|i| *zeroed.as_ptr().add(i) == 0));
+            MiMalloc::free_csize_nonnull(zeroed, 64);
+
+            rustfs_mimalloc_sys::mi_heap_delete(heap);
         }
     }
 

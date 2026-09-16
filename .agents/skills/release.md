@@ -156,7 +156,9 @@ Only include a path if it actually changed.
 Commit with the required trailer:
 
 ```bash
-git commit -m "chore(release): v<VERSION>" -m "Co-Authored-By: heihutu <heihutu@gmail.com>"
+git commit -m "chore(release): v<VERSION>" \
+  -m "Co-Authored-By: heihutu <heihutu@gmail.com>" \
+  -m "Co-Authored-By: zhi22915 <qiuzgang@gmail.com>"
 ```
 
 ## Tag And Publish
