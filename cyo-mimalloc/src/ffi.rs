@@ -2,7 +2,7 @@ use core::ffi::{CStr, c_void};
 
 const OUTPUT_BUFFER_CAPACITY: usize = 64 * 1024;
 
-pub(crate) unsafe fn owned_mimalloc_string(ptr: *mut rustfs_mimalloc_sys::c_char) -> String {
+pub(crate) unsafe fn owned_mimalloc_string(ptr: *mut cyo_mimalloc_sys::c_char) -> String {
     if ptr.is_null() {
         return String::new();
     }
@@ -10,12 +10,12 @@ pub(crate) unsafe fn owned_mimalloc_string(ptr: *mut rustfs_mimalloc_sys::c_char
     let result = unsafe { CStr::from_ptr(ptr) }
         .to_string_lossy()
         .into_owned();
-    unsafe { rustfs_mimalloc_sys::mi_free(ptr as *mut c_void) };
+    unsafe { cyo_mimalloc_sys::mi_free(ptr as *mut c_void) };
     result
 }
 
 pub(crate) fn collect_mimalloc_output(
-    write: impl FnOnce(Option<rustfs_mimalloc_sys::mi_output_fun>, *mut c_void),
+    write: impl FnOnce(Option<cyo_mimalloc_sys::mi_output_fun>, *mut c_void),
 ) -> String {
     let mut output = OutputBuffer {
         bytes: Vec::with_capacity(OUTPUT_BUFFER_CAPACITY),
@@ -40,7 +40,7 @@ struct OutputBuffer {
 }
 
 unsafe extern "C" fn collect_mimalloc_output_callback(
-    msg: *const rustfs_mimalloc_sys::c_char,
+    msg: *const cyo_mimalloc_sys::c_char,
     arg: *mut c_void,
 ) {
     if msg.is_null() || arg.is_null() {

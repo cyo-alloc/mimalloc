@@ -1,0 +1,15 @@
+[package]
+name = "cyo-mimalloc"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+documentation = "https://docs.rs/cyo-mimalloc"
+description = "High-performance mimalloc V3 global allocator for Rust"
+keywords.workspace = true
+categories = ["memory-management"]
+
+[dependencies]
+cyo-mimalloc-sys = { workspace = true }

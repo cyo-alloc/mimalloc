@@ -1,0 +1,25 @@
+[package]
+name = "cyo-mimalloc-sys"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+documentation = "https://docs.rs/cyo-mimalloc-sys"
+description = "Low-level FFI bindings to mimalloc V3"
+keywords.workspace = true
+categories = ["memory-management", "no-std"]
+links = "mimalloc"
+build = "build.rs"
+include = [
+    "Cargo.toml",
+    "build.rs",
+    "src/**",
+    "c_src/mimalloc/LICENSE",
+    "c_src/mimalloc/include/**",
+    "c_src/mimalloc/src/**",
+]
+
+[build-dependencies]
+cc = { workspace = true }

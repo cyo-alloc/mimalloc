@@ -1,3 +1,3 @@
-[submodule "rustfs-mimalloc-sys/c_src/mimalloc"]
-	path = rustfs-mimalloc-sys/c_src/mimalloc
+[submodule "cyo-mimalloc-sys/c_src/mimalloc"]
+	path = cyo-mimalloc-sys/c_src/mimalloc
 	url = https://github.com/microsoft/mimalloc.git
