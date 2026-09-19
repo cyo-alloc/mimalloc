@@ -9,7 +9,7 @@ authors.workspace = true
 documentation = "https://docs.rs/cyo-mimalloc"
 description = "High-performance mimalloc V3 global allocator for Rust"
 keywords.workspace = true
-categories = ["memory-management"]
+categories = ["memory-management", "no-std::no-alloc"]
 
 [dependencies]
 cyo-mimalloc-sys = { workspace = true }

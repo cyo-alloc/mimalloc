@@ -2,6 +2,7 @@
 
 use crate::MiMalloc;
 use core::ffi::{c_long, c_void};
+use core::fmt;
 use cyo_mimalloc_sys::mi_option_t;
 
 /// Mark the current thread as part of a thread pool for mimalloc.
@@ -70,19 +71,22 @@ impl MiMalloc {
 
     // ── Stats ───────────────────────────────────────────────────────────────
 
-    /// Allocation statistics as JSON. Returns empty string on failure.
-    pub fn stats_json() -> String {
+    /// Write the allocation statistics to `out` as JSON.
+    ///
+    /// Fails if mimalloc cannot produce the statistics or `out` fails.
+    pub fn stats_json(out: &mut (impl fmt::Write + ?Sized)) -> fmt::Result {
         unsafe {
-            crate::ffi::owned_mimalloc_string(cyo_mimalloc_sys::mi_stats_get_json(
-                0,
-                core::ptr::null_mut(),
-            ))
+            crate::ffi::write_owned_c_string(
+                out,
+                cyo_mimalloc_sys::mi_stats_get_json(0, core::ptr::null_mut()),
+            )
         }
     }
 
-    /// Allocation statistics in mimalloc's human-readable text format.
-    pub fn stats_print() -> String {
-        crate::ffi::collect_mimalloc_output(|out, arg| unsafe {
+    /// Write the allocation statistics to `out` in mimalloc's human-readable
+    /// text format.
+    pub fn stats_print(out: &mut dyn fmt::Write) -> fmt::Result {
+        crate::ffi::write_output(out, |out, arg| unsafe {
             cyo_mimalloc_sys::mi_stats_print_out(out, arg);
         })
     }
@@ -93,9 +97,10 @@ impl MiMalloc {
         unsafe { cyo_mimalloc_sys::mi_stats_reset() }
     }
 
-    /// Process memory information in mimalloc's human-readable text format.
-    pub fn process_info_print() -> String {
-        crate::ffi::collect_mimalloc_output(|out, arg| unsafe {
+    /// Write process memory information to `out` in mimalloc's human-readable
+    /// text format.
+    pub fn process_info_print(out: &mut dyn fmt::Write) -> fmt::Result {
+        crate::ffi::write_output(out, |out, arg| unsafe {
             cyo_mimalloc_sys::mi_process_info_print_out(out, arg);
         })
     }
@@ -160,6 +165,7 @@ impl MiMalloc {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::string::String;
 
     #[test]
     fn version_is_v3() {
@@ -168,14 +174,28 @@ mod tests {
 
     #[test]
     fn stats_json_not_empty() {
-        let json = MiMalloc::stats_json();
-        assert!(!json.is_empty());
+        let mut json = String::new();
+        MiMalloc::stats_json(&mut json).unwrap();
+        assert!(json.starts_with('{'));
     }
 
     #[test]
     fn stats_print_not_empty() {
-        let stats = MiMalloc::stats_print();
+        let mut stats = String::new();
+        MiMalloc::stats_print(&mut stats).unwrap();
         assert!(!stats.is_empty());
+    }
+
+    #[test]
+    fn stats_print_propagates_writer_errors() {
+        struct Failing;
+        impl fmt::Write for Failing {
+            fn write_str(&mut self, _: &str) -> fmt::Result {
+                Err(fmt::Error)
+            }
+        }
+        assert!(MiMalloc::stats_print(&mut Failing).is_err());
+        assert!(MiMalloc::stats_json(&mut Failing).is_err());
     }
 
     #[test]
@@ -185,7 +205,8 @@ mod tests {
 
     #[test]
     fn process_info_print_not_empty() {
-        let info = MiMalloc::process_info_print();
+        let mut info = String::new();
+        MiMalloc::process_info_print(&mut info).unwrap();
         assert!(!info.is_empty());
     }
 

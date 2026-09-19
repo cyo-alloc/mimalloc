@@ -1,63 +1,60 @@
-use core::ffi::{CStr, c_void};
+use core::ffi::{CStr, c_char, c_void};
+use core::fmt;
 
-const OUTPUT_BUFFER_CAPACITY: usize = 64 * 1024;
-
-pub(crate) unsafe fn owned_mimalloc_string(ptr: *mut cyo_mimalloc_sys::c_char) -> String {
+/// Write a string that mimalloc allocated to `out`, then free it.
+///
+/// A null `ptr` means mimalloc could not produce the string.
+///
+/// # Safety
+/// `ptr` must be null or a NUL-terminated string allocated by mimalloc that the
+/// caller owns.
+pub(crate) unsafe fn write_owned_c_string(
+    out: &mut (impl fmt::Write + ?Sized),
+    ptr: *mut c_char,
+) -> fmt::Result {
     if ptr.is_null() {
-        return String::new();
+        return Err(fmt::Error);
     }
-
-    let result = unsafe { CStr::from_ptr(ptr) }
-        .to_string_lossy()
-        .into_owned();
+    let result = write_bytes(out, unsafe { CStr::from_ptr(ptr) }.to_bytes());
     unsafe { cyo_mimalloc_sys::mi_free(ptr as *mut c_void) };
     result
 }
 
-pub(crate) fn collect_mimalloc_output(
-    write: impl FnOnce(Option<cyo_mimalloc_sys::mi_output_fun>, *mut c_void),
-) -> String {
-    let mut output = OutputBuffer {
-        bytes: Vec::with_capacity(OUTPUT_BUFFER_CAPACITY),
-        truncated: false,
+/// Run `print` with an output callback that forwards everything to `out`.
+pub(crate) fn write_output(
+    out: &mut dyn fmt::Write,
+    print: impl FnOnce(Option<cyo_mimalloc_sys::mi_output_fun>, *mut c_void),
+) -> fmt::Result {
+    let mut sink = Sink {
+        out,
+        result: Ok(()),
     };
-
-    write(
-        Some(collect_mimalloc_output_callback),
-        &mut output as *mut OutputBuffer as *mut c_void,
-    );
-
-    let mut result = String::from_utf8_lossy(&output.bytes).into_owned();
-    if output.truncated {
-        result.push_str("\n[truncated: mimalloc profile output exceeded internal buffer]\n");
-    }
-    result
+    print(Some(output_callback), &mut sink as *mut Sink as *mut c_void);
+    sink.result
 }
 
-struct OutputBuffer {
-    bytes: Vec<u8>,
-    truncated: bool,
+struct Sink<'a> {
+    out: &'a mut dyn fmt::Write,
+    result: fmt::Result,
 }
 
-unsafe extern "C" fn collect_mimalloc_output_callback(
-    msg: *const cyo_mimalloc_sys::c_char,
-    arg: *mut c_void,
-) {
+unsafe extern "C" fn output_callback(msg: *const c_char, arg: *mut c_void) {
     if msg.is_null() || arg.is_null() {
         return;
     }
-
-    let output = unsafe { &mut *(arg as *mut OutputBuffer) };
-    if output.truncated {
-        return;
+    let sink = unsafe { &mut *(arg as *mut Sink) };
+    if sink.result.is_ok() {
+        sink.result = write_bytes(sink.out, unsafe { CStr::from_ptr(msg) }.to_bytes());
     }
+}
 
-    let msg = unsafe { CStr::from_ptr(msg) }.to_bytes();
-    let available = output.bytes.capacity().saturating_sub(output.bytes.len());
-    if msg.len() <= available {
-        output.bytes.extend_from_slice(msg);
-    } else {
-        output.bytes.extend_from_slice(&msg[..available]);
-        output.truncated = true;
+/// Write `bytes` as text, replacing invalid UTF-8 with U+FFFD.
+fn write_bytes(out: &mut (impl fmt::Write + ?Sized), bytes: &[u8]) -> fmt::Result {
+    for chunk in bytes.utf8_chunks() {
+        out.write_str(chunk.valid())?;
+        if !chunk.invalid().is_empty() {
+            out.write_char(char::REPLACEMENT_CHARACTER)?;
+        }
     }
+    Ok(())
 }

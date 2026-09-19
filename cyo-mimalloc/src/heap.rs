@@ -1,6 +1,7 @@
 //! Heap and arena operations for advanced memory management.
 
 use core::ffi::c_void;
+use core::fmt;
 use core::ptr::NonNull;
 
 // ── Error type ──────────────────────────────────────────────────────────────
@@ -122,20 +123,26 @@ impl Heap {
         unsafe { cyo_mimalloc_sys::mi_heap_collect(self.ptr.as_ptr(), force) }
     }
 
-    /// Allocation statistics for this heap as JSON. Returns empty string on failure.
-    pub fn stats_json(&self) -> String {
+    /// Write this heap's allocation statistics to `out` as JSON.
+    ///
+    /// Fails if mimalloc cannot produce the statistics or `out` fails.
+    pub fn stats_json(&self, out: &mut (impl fmt::Write + ?Sized)) -> fmt::Result {
         unsafe {
-            crate::ffi::owned_mimalloc_string(cyo_mimalloc_sys::mi_heap_stats_get_json(
-                self.ptr.as_ptr(),
-                0,
-                core::ptr::null_mut(),
-            ))
+            crate::ffi::write_owned_c_string(
+                out,
+                cyo_mimalloc_sys::mi_heap_stats_get_json(
+                    self.ptr.as_ptr(),
+                    0,
+                    core::ptr::null_mut(),
+                ),
+            )
         }
     }
 
-    /// Allocation statistics for this heap in mimalloc's human-readable text format.
-    pub fn stats_print(&self) -> String {
-        crate::ffi::collect_mimalloc_output(|out, arg| unsafe {
+    /// Write this heap's allocation statistics to `out` in mimalloc's
+    /// human-readable text format.
+    pub fn stats_print(&self, out: &mut dyn fmt::Write) -> fmt::Result {
+        crate::ffi::write_output(out, |out, arg| unsafe {
             cyo_mimalloc_sys::mi_heap_stats_print_out(self.ptr.as_ptr(), out, arg);
         })
     }
@@ -342,8 +349,12 @@ mod tests {
     #[test]
     fn heap_stats_are_available() {
         let heap = Heap::new().unwrap();
-        assert!(!heap.stats_json().is_empty());
-        assert!(!heap.stats_print().is_empty());
+        let mut json = std::string::String::new();
+        heap.stats_json(&mut json).unwrap();
+        assert!(json.starts_with('{'));
+        let mut text = std::string::String::new();
+        heap.stats_print(&mut text).unwrap();
+        assert!(!text.is_empty());
         heap.delete();
     }
 

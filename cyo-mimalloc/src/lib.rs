@@ -8,6 +8,11 @@
 //! static GLOBAL: MiMalloc = MiMalloc;
 //! ```
 //!
+//! The crate is `no_std` and does not use `alloc`. Functions that produce text,
+//! such as [`MiMalloc::stats_print`], write it to any [`core::fmt::Write`], so a
+//! `String` works, and so does a fixed buffer or a logger that allocates
+//! nothing.
+//!
 //! The global allocator only covers Rust allocations. C libraries linked into
 //! the same program (through `-sys` crates) keep calling the system `malloc`.
 //!
@@ -114,6 +119,11 @@
 //!
 //! Options read "per thread" apply to threads that start after the change.
 
+#![no_std]
+
+#[cfg(test)]
+extern crate std;
+
 mod api;
 mod ffi;
 
@@ -165,6 +175,8 @@ unsafe impl GlobalAlloc for MiMalloc {
 mod tests {
     use super::*;
     use std::alloc::{GlobalAlloc, Layout};
+    use std::boxed::Box;
+    use std::vec::Vec;
 
     #[global_allocator]
     static GLOBAL: MiMalloc = MiMalloc;
