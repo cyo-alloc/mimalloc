@@ -1,0 +1,73 @@
+name: CI
+
+# Also started by the update workflow on its PR branch, because pull requests
+# opened with GITHUB_TOKEN do not trigger `pull_request` workflows.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  clippy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - run: rustup update stable --no-self-update && rustup default stable
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+
+  doc:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - run: rustup update stable --no-self-update && rustup default stable
+      - run: cargo doc --workspace --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
+
+  test:
+    name: test (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: default
+            secure: ""
+            debug: ""
+          - name: secure, debug
+            secure: "4"
+            debug: "2"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - run: rustup update stable --no-self-update && rustup default stable
+      - name: cargo test
+        env:
+          SECURE: ${{ matrix.secure }}
+          DEBUG: ${{ matrix.debug }}
+        run: |
+          if [ -n "$SECURE" ]; then export MI_SECURE="$SECURE"; fi
+          if [ -n "$DEBUG" ]; then export MI_DEBUG="$DEBUG"; fi
+          cargo test --workspace

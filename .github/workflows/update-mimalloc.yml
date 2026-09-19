@@ -20,8 +20,8 @@ env:
 # treats them as data.
 
 jobs:
-  # Builds and tests the new release. It runs upstream code, so it gets a
-  # read-only token that is never written to disk.
+  # Looks for a new release and describes it. It fetches upstream code, so it
+  # gets a read-only token that is never written to disk.
   check:
     runs-on: ubuntu-latest
     permissions:
@@ -69,38 +69,14 @@ jobs:
           git -C "$SUBMODULE" checkout --detach "$SHA"
           git -C "$SUBMODULE" diff "$old" HEAD -- ':(glob)include/*.h' > "$RUNNER_TEMP/pr/headers.diff"
 
-      - name: Test
-        id: test
-        if: steps.latest.outputs.changed == 'true'
-        continue-on-error: true
-        run: |
-          set -o pipefail
-          rustup update stable --no-self-update
-          rustup default stable
-          {
-            cargo test --workspace
-            MI_SECURE=4 MI_DEBUG=2 cargo test --workspace
-          } 2>&1 | tee "$RUNNER_TEMP/test.log"
-
       - name: Write PR body
         if: steps.latest.outputs.changed == 'true'
         env:
           TAG: ${{ steps.latest.outputs.tag }}
-          TEST_OUTCOME: ${{ steps.test.outcome }}
         run: |
           old_version=$(cat "$RUNNER_TEMP/pr/old_version")
           {
             echo "Updates the vendored mimalloc from \`$old_version\` to [$TAG](https://github.com/microsoft/mimalloc/releases/tag/$TAG)."
-            echo
-            if [ "$TEST_OUTCOME" = "success" ]; then
-              echo "\`cargo test\` passed."
-            else
-              echo "**\`cargo test\` failed.** Tail of the log:"
-              echo
-              echo '```'
-              tail -n 80 "$RUNNER_TEMP/test.log"
-              echo '```'
-            fi
             echo
             if [ -s "$RUNNER_TEMP/pr/headers.diff" ]; then
               echo "Changes to the public headers (check the bindings in \`cyo-mimalloc-sys/src/lib.rs\`):"
@@ -120,13 +96,15 @@ jobs:
           path: ${{ runner.temp }}/pr/body.md
           retention-days: 1
 
-  # Opens or updates the PR. It can write to the repository, so it never runs
-  # upstream code: it only moves the submodule pointer.
+  # Opens or updates the PR and starts CI on it. It can write to the
+  # repository, so it never runs upstream code: it only moves the submodule
+  # pointer.
   pr:
     needs: check
     if: needs.check.outputs.changed == 'true'
     runs-on: ubuntu-latest
     permissions:
+      actions: write
       contents: write
       pull-requests: write
     steps:
@@ -167,3 +145,6 @@ jobs:
             git push origin --delete "$BRANCH"
             exit 1
           fi
+
+          # A PR opened with GITHUB_TOKEN does not trigger CI by itself.
+          gh workflow run ci.yml --ref "$BRANCH"
