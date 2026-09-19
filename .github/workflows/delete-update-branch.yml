@@ -1,0 +1,26 @@
+name: Delete mimalloc update branch
+
+# Only the branch of the mimalloc update PR is deleted once that PR is closed;
+# other pull requests keep their branches.
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  delete:
+    if: >-
+      github.event.pull_request.head.ref == 'update-mimalloc' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Delete branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: gh api -X DELETE "repos/$REPO/git/refs/heads/update-mimalloc"
