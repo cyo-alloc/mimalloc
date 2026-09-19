@@ -5,9 +5,7 @@ on:
     - cron: "36 4 * * *"
   workflow_dispatch:
 
-permissions:
-  contents: write
-  pull-requests: write
+permissions: {}
 
 concurrency:
   group: update-mimalloc
@@ -15,14 +13,28 @@ concurrency:
 
 env:
   SUBMODULE: cyo-mimalloc-sys/c_src/mimalloc
+  BRANCH: update-mimalloc
+
+# Values from outside (the release tag, step outputs) only ever reach shell
+# code through `env:`, never through `${{ }}` inside a script, so the shell
+# treats them as data.
 
 jobs:
-  update:
+  # Builds and tests the new release. It runs upstream code, so it gets a
+  # read-only token that is never written to disk.
+  check:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      changed: ${{ steps.latest.outputs.changed }}
+      tag: ${{ steps.latest.outputs.tag }}
+      sha: ${{ steps.latest.outputs.sha }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
+          persist-credentials: false
 
       - name: Find latest v3 release
         id: latest
@@ -37,28 +49,25 @@ jobs:
             exit 1
           fi
           git -C "$SUBMODULE" fetch --depth 1 origin "refs/tags/$tag:refs/tags/$tag"
-          new=$(git -C "$SUBMODULE" rev-parse "$tag^{commit}")
+          new=$(git -C "$SUBMODULE" rev-parse "refs/tags/$tag^{commit}")
           old=$(git -C "$SUBMODULE" rev-parse HEAD)
-          old_version=$(awk '/^#define MI_MALLOC_VERSION/ { print $3 }' "$SUBMODULE/include/mimalloc.h")
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "old_version=$old_version" >> "$GITHUB_OUTPUT"
-          if [ "$new" = "$old" ]; then
-            echo "Already at $tag"
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "Updating $old -> $new ($tag)"
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          fi
+          {
+            echo "tag=$tag"
+            echo "sha=$new"
+            if [ "$new" = "$old" ]; then echo "changed=false"; else echo "changed=true"; fi
+          } >> "$GITHUB_OUTPUT"
 
       - name: Move submodule to release
         if: steps.latest.outputs.changed == 'true'
+        env:
+          SHA: ${{ steps.latest.outputs.sha }}
         run: |
+          mkdir -p "$RUNNER_TEMP/pr"
           old=$(git -C "$SUBMODULE" rev-parse HEAD)
-          git -C "$SUBMODULE" checkout --detach "${{ steps.latest.outputs.tag }}"
-          git -C "$SUBMODULE" diff "$old" HEAD -- ':(glob)include/*.h' > "$RUNNER_TEMP/headers.diff"
-
-      - uses: dtolnay/rust-toolchain@stable
-        if: steps.latest.outputs.changed == 'true'
+          old_version=$(awk '/^#define MI_MALLOC_VERSION/ { print $3 }' "$SUBMODULE/include/mimalloc.h")
+          echo "$old_version" > "$RUNNER_TEMP/pr/old_version"
+          git -C "$SUBMODULE" checkout --detach "$SHA"
+          git -C "$SUBMODULE" diff "$old" HEAD -- ':(glob)include/*.h' > "$RUNNER_TEMP/pr/headers.diff"
 
       - name: Test
         id: test
@@ -66,6 +75,8 @@ jobs:
         continue-on-error: true
         run: |
           set -o pipefail
+          rustup update stable --no-self-update
+          rustup default stable
           {
             cargo test --workspace
             MI_SECURE=4 MI_DEBUG=2 cargo test --workspace
@@ -75,12 +86,11 @@ jobs:
         if: steps.latest.outputs.changed == 'true'
         env:
           TAG: ${{ steps.latest.outputs.tag }}
-          OLD_VERSION: ${{ steps.latest.outputs.old_version }}
           TEST_OUTCOME: ${{ steps.test.outcome }}
         run: |
-          body="$RUNNER_TEMP/body.md"
+          old_version=$(cat "$RUNNER_TEMP/pr/old_version")
           {
-            echo "Updates the vendored mimalloc from \`$OLD_VERSION\` to [$TAG](https://github.com/microsoft/mimalloc/releases/tag/$TAG)."
+            echo "Updates the vendored mimalloc from \`$old_version\` to [$TAG](https://github.com/microsoft/mimalloc/releases/tag/$TAG)."
             echo
             if [ "$TEST_OUTCOME" = "success" ]; then
               echo "\`cargo test\` passed."
@@ -92,23 +102,66 @@ jobs:
               echo '```'
             fi
             echo
-            if [ -s "$RUNNER_TEMP/headers.diff" ]; then
+            if [ -s "$RUNNER_TEMP/pr/headers.diff" ]; then
               echo "Changes to the public headers (check the bindings in \`cyo-mimalloc-sys/src/lib.rs\`):"
               echo
               echo '```diff'
-              head -c 50000 "$RUNNER_TEMP/headers.diff"
+              head -c 50000 "$RUNNER_TEMP/pr/headers.diff"
               echo '```'
             else
               echo "The public headers are unchanged."
             fi
-          } > "$body"
+          } > "$RUNNER_TEMP/pr/body.md"
 
-      - uses: peter-evans/create-pull-request@v8
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: steps.latest.outputs.changed == 'true'
         with:
-          branch: update-mimalloc
-          delete-branch: true
-          add-paths: ${{ env.SUBMODULE }}
-          commit-message: "Update mimalloc to ${{ steps.latest.outputs.tag }}"
-          title: "Update mimalloc to ${{ steps.latest.outputs.tag }}"
-          body-path: ${{ runner.temp }}/body.md
+          name: pr
+          path: ${{ runner.temp }}/pr/body.md
+          retention-days: 1
+
+  # Opens or updates the PR. It can write to the repository, so it never runs
+  # upstream code: it only moves the submodule pointer.
+  pr:
+    needs: check
+    if: needs.check.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: pr
+          path: ${{ runner.temp }}/pr
+
+      - name: Commit and open PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.check.outputs.tag }}
+          SHA: ${{ needs.check.outputs.sha }}
+          BASE: ${{ github.event.repository.default_branch }}
+        run: |
+          [[ $TAG =~ ^v3\.[0-9]+\.[0-9]+$ ]] || { echo "unexpected tag: $TAG" >&2; exit 1; }
+          [[ $SHA =~ ^[0-9a-f]{40}$ ]] || { echo "unexpected sha: $SHA" >&2; exit 1; }
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git update-index --cacheinfo "160000,$SHA,$SUBMODULE"
+          git commit -m "Update mimalloc to $TAG"
+
+          gh auth setup-git
+          git push --force origin "HEAD:refs/heads/$BRANCH"
+
+          title="Update mimalloc to $TAG"
+          body="$RUNNER_TEMP/pr/body.md"
+          number=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+          if [ -n "$number" ]; then
+            gh pr edit "$number" --title "$title" --body-file "$body"
+          else
+            gh pr create --base "$BASE" --head "$BRANCH" --title "$title" --body-file "$body"
+          fi
