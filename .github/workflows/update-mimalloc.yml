@@ -162,6 +162,8 @@ jobs:
           number=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
           if [ -n "$number" ]; then
             gh pr edit "$number" --title "$title" --body-file "$body"
-          else
-            gh pr create --base "$BASE" --head "$BRANCH" --title "$title" --body-file "$body"
+          elif ! gh pr create --base "$BASE" --head "$BRANCH" --title "$title" --body-file "$body"; then
+            # Without a PR the branch is useless; don't leave it behind.
+            git push origin --delete "$BRANCH"
+            exit 1
           fi
