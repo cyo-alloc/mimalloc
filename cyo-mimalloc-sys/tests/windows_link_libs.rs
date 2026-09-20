@@ -9,6 +9,10 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+mod common;
+
+use common::{calls, strip_c_comments_and_strings};
+
 include!("../windows_link_libs.rs");
 
 fn windows_prim_dir() -> PathBuf {
@@ -23,7 +27,7 @@ fn windows_sources() -> String {
     for entry in fs::read_dir(&dir).expect("mimalloc submodule is not checked out") {
         let path = entry.unwrap().path();
         if matches!(path.extension().and_then(|e| e.to_str()), Some("c" | "h")) {
-            out.push_str(&strip_comments_and_strings(
+            out.push_str(&strip_c_comments_and_strings(
                 &fs::read_to_string(&path).unwrap(),
             ));
             out.push('\n');
@@ -31,52 +35,6 @@ fn windows_sources() -> String {
     }
     assert!(!out.trim().is_empty(), "no sources found in {}", dir.display());
     out
-}
-
-fn strip_comments_and_strings(text: &str) -> String {
-    let bytes = text.as_bytes();
-    let mut out = String::with_capacity(text.len());
-    let mut i = 0;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'/' if bytes.get(i + 1) == Some(&b'/') => {
-                while i < bytes.len() && bytes[i] != b'\n' {
-                    i += 1;
-                }
-            }
-            b'/' if bytes.get(i + 1) == Some(&b'*') => {
-                i += 2;
-                while i < bytes.len() && !(bytes[i] == b'*' && bytes.get(i + 1) == Some(&b'/')) {
-                    i += 1;
-                }
-                i = (i + 2).min(bytes.len());
-                out.push(' ');
-            }
-            quote @ (b'"' | b'\'') => {
-                i += 1;
-                while i < bytes.len() && bytes[i] != quote {
-                    i += if bytes[i] == b'\\' { 2 } else { 1 };
-                }
-                i += 1;
-                out.push(' ');
-            }
-            byte => {
-                out.push(byte as char);
-                i += 1;
-            }
-        }
-    }
-    out
-}
-
-/// Whether `symbol` is called (or declared) in `text`, rather than appearing as
-/// part of a longer identifier such as the `PGetProcessMemoryInfo` typedef.
-fn calls(text: &str, symbol: &str) -> bool {
-    text.match_indices(symbol).any(|(at, _)| {
-        let before = text[..at].chars().next_back();
-        let after = text[at + symbol.len()..].trim_start().chars().next();
-        !before.is_some_and(|c| c.is_alphanumeric() || c == '_') && after == Some('(')
-    })
 }
 
 #[test]
