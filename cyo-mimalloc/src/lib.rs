@@ -1,5 +1,5 @@
 //! [mimalloc](https://github.com/microsoft/mimalloc) V3 as a Rust global
-//! allocator, for Linux.
+//! allocator.
 //!
 //! ```rust
 //! use cyo_mimalloc::MiMalloc;
@@ -31,7 +31,7 @@
 //! | `MI_SECURE` | 0 to 4 (default 0) | Secure mode: guard pages, encoded free lists, randomized allocation and double-free detection, more of them at higher levels, at some cost in speed. |
 //! | `MI_DEBUG` | 0 to 3 (default 0) | Internal assertions (1), plus consistency checks (2), plus expensive checks (3). |
 //! | `MI_NO_THP` | 0 or 1 (default 0) | 1 compiles out mimalloc's requests for transparent huge pages. To decide at runtime instead, use the `allow_thp` option. |
-//! | `CYO_MIMALLOC_TLS_MODEL` | `initial-exec` (default), `local-dynamic`, `global-dynamic`, `local-exec` | How mimalloc finds its thread-local state. `initial-exec` is the fastest, but a shared library that is loaded with `dlopen` (such as a Python extension) needs `local-dynamic`. |
+//! | `CYO_MIMALLOC_TLS_MODEL` | `initial-exec` (default), `local-dynamic`, `global-dynamic`, `local-exec` | How mimalloc finds its thread-local state. `initial-exec` is the fastest, but a shared library that is loaded with `dlopen` (such as a Python extension) needs `local-dynamic`. ELF targets only; ignored when building for MSVC. |
 //! | `MI_DEFAULT_<NAME>` | see [Build-time defaults](#build-time-defaults) | The default value of a runtime option. |
 //!
 //! Invalid values stop the build with an error.

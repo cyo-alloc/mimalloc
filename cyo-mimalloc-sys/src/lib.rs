@@ -1,4 +1,4 @@
-//! Low-level FFI bindings to [mimalloc](https://github.com/microsoft/mimalloc) V3, for Linux.
+//! Low-level FFI bindings to [mimalloc](https://github.com/microsoft/mimalloc) V3.
 //!
 //! For a safe wrapper, use the `cyo-mimalloc` crate. [`mi_option_t`] documents
 //! every runtime option and how to set it.

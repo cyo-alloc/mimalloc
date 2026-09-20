@@ -14,14 +14,14 @@ dependencies = [
 
 [[package]]
 name = "cyo-mimalloc"
-version = "0.5.4"
+version = "0.0.1"
 dependencies = [
  "cyo-mimalloc-sys",
 ]
 
 [[package]]
 name = "cyo-mimalloc-sys"
-version = "0.5.4"
+version = "0.0.1"
 dependencies = [
  "cc",
 ]

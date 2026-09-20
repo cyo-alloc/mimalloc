@@ -7,9 +7,13 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 documentation = "https://docs.rs/cyo-mimalloc"
-description = "High-performance mimalloc V3 global allocator for Rust"
+description = "mimalloc V3 as a Rust global allocator"
+readme = "../README.md"
 keywords.workspace = true
 categories = ["memory-management", "no-std::no-alloc"]
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
 
 [dependencies]
 cyo-mimalloc-sys = { workspace = true }

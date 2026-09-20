@@ -9,9 +9,13 @@ use std::env;
 use std::fs;
 use std::path::Path;
 
+include!("windows_link_libs.rs");
+
 struct TargetCfg {
     triple: String,
     arch: String,
+    os: String,
+    env: String,
 }
 
 impl TargetCfg {
@@ -19,6 +23,8 @@ impl TargetCfg {
         Self {
             triple: env::var("TARGET").unwrap_or_default(),
             arch: env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default(),
+            os: env::var("CARGO_CFG_TARGET_OS").unwrap_or_default(),
+            env: env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default(),
         }
     }
 
@@ -33,6 +39,7 @@ fn main() {
     let is_debug = env::var("PROFILE").as_deref() == Ok("debug");
 
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=windows_link_libs.rs");
     println!("cargo:rerun-if-changed=c_src/mimalloc");
 
     let mut build = cc::Build::new();
@@ -62,13 +69,16 @@ fn main() {
     }
 
     // TLS model: initial-exec is fastest, but a shared library loaded with
-    // `dlopen` needs local-dynamic.
+    // `dlopen` needs local-dynamic. The value is still checked when building
+    // for MSVC, which has no equivalent flag and would only warn about it.
     // See: https://github.com/purpleprotocol/mimalloc_rust/issues/138
     println!("cargo:rerun-if-env-changed=CYO_MIMALLOC_TLS_MODEL");
     let tls_model = env::var("CYO_MIMALLOC_TLS_MODEL").unwrap_or_else(|_| "initial-exec".into());
     match tls_model.as_str() {
         "initial-exec" | "local-dynamic" | "global-dynamic" | "local-exec" => {
-            build.flag(format!("-ftls-model={tls_model}"));
+            if target.env != "msvc" {
+                build.flag(format!("-ftls-model={tls_model}"));
+            }
         }
         other => panic!(
             "CYO_MIMALLOC_TLS_MODEL={other:?} is not one of initial-exec, local-dynamic, \
@@ -94,6 +104,13 @@ fn main() {
     // See: https://github.com/purpleprotocol/mimalloc_rust/pull/115
     if target.needs_armv6_atomic() {
         println!("cargo:rustc-link-lib=atomic");
+    }
+
+    // Windows: the sources call into advapi32 to enable large pages, and
+    // mimalloc declares none of the import libraries it needs. See
+    // windows_link_libs.rs.
+    for lib in windows_link_libs(&target.os) {
+        println!("cargo:rustc-link-lib={lib}");
     }
 
     // Export include directory for downstream crates
