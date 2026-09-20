@@ -36,6 +36,12 @@
 //!
 //! Invalid values stop the build with an error.
 //!
+//! On MSVC, mimalloc is compiled with whichever C runtime the rest of the
+//! build uses: `/MT` under `-C target-feature=+crt-static` and `/MD`
+//! otherwise. A statically linked program therefore needs neither
+//! `vcruntime140.dll` nor `ucrtbase.dll`, and no build variable of this
+//! crate selects the runtime — mixing the two in one binary is a link error.
+//!
 //! ```toml
 //! # .cargo/config.toml of the application
 //! [env]

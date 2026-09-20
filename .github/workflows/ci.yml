@@ -75,3 +75,22 @@ jobs:
           if [ -n "$SECURE" ]; then export MI_SECURE="$SECURE"; fi
           if [ -n "$DEBUG" ]; then export MI_DEBUG="$DEBUG"; fi
           cargo test --workspace
+
+  # A statically linked Windows program: mimalloc has to be compiled against
+  # the same C runtime, or the link fails on duplicate and missing symbols.
+  test-static-crt:
+    name: test (windows-latest, static CRT)
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - run: rustup update stable --no-self-update && rustup default stable
+      - name: cargo test
+        shell: bash
+        env:
+          RUSTFLAGS: -C target-feature=+crt-static
+        run: cargo test --workspace
