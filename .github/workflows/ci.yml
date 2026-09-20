@@ -43,14 +43,17 @@ jobs:
           RUSTDOCFLAGS: -D warnings
 
   test:
-    name: test (${{ matrix.name }})
-    runs-on: ubuntu-latest
+    name: test (${{ matrix.os }}, ${{ matrix.config.name }})
+    runs-on: ${{ matrix.os }}
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        include:
+        # Windows catches a missing import library: mimalloc only fails to link
+        # once something actually uses it, which the tests do.
+        os: [ubuntu-latest, windows-latest]
+        config:
           - name: default
             secure: ""
             debug: ""
@@ -64,9 +67,10 @@ jobs:
           persist-credentials: false
       - run: rustup update stable --no-self-update && rustup default stable
       - name: cargo test
+        shell: bash
         env:
-          SECURE: ${{ matrix.secure }}
-          DEBUG: ${{ matrix.debug }}
+          SECURE: ${{ matrix.config.secure }}
+          DEBUG: ${{ matrix.config.debug }}
         run: |
           if [ -n "$SECURE" ]; then export MI_SECURE="$SECURE"; fi
           if [ -n "$DEBUG" ]; then export MI_DEBUG="$DEBUG"; fi

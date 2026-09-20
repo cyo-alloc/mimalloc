@@ -3,23 +3,31 @@ name = "cyo-mimalloc-sys"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license.workspace = true
+# mimalloc itself, bundled in c_src/mimalloc, is MIT licensed.
+license = "Apache-2.0 AND MIT"
 repository.workspace = true
 authors.workspace = true
 documentation = "https://docs.rs/cyo-mimalloc-sys"
 description = "Low-level FFI bindings to mimalloc V3"
+readme = "../README.md"
 keywords.workspace = true
 categories = ["memory-management", "no-std::no-alloc"]
 links = "mimalloc"
 build = "build.rs"
 include = [
     "Cargo.toml",
+    "LICENSE",
     "build.rs",
+    "windows_link_libs.rs",
+    "tests/**",
     "src/**",
     "c_src/mimalloc/LICENSE",
     "c_src/mimalloc/include/**",
     "c_src/mimalloc/src/**",
 ]
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
 
 [build-dependencies]
 cc = { workspace = true }
