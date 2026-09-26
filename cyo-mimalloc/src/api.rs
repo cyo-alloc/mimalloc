@@ -221,7 +221,7 @@ mod tests {
 
     #[test]
     fn version_is_v3() {
-        assert!(MiMalloc::version() >= 30502, "expected >= V3.5.2");
+        assert!(MiMalloc::version() >= 30502, "expected >= v3.5.2");
     }
 
     #[test]

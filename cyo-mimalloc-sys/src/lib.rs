@@ -1,4 +1,4 @@
-//! Low-level FFI bindings to [mimalloc](https://github.com/microsoft/mimalloc) V3.
+//! Low-level FFI bindings to [mimalloc](https://github.com/microsoft/mimalloc) v3.
 //!
 //! The build script compiles the bundled mimalloc sources into a static
 //! library and links it. For a safe wrapper and the global allocator, use the
@@ -420,7 +420,7 @@ pub struct mi_profiler_t {
     /// possibly from several threads at once.
     pub on_free: Option<mi_profiler_on_free_fun>,
     /// The function that mimalloc calls when it reallocates a sampled
-    /// allocation in place. mimalloc V3.5 does not call it yet.
+    /// allocation in place. mimalloc v3.5 does not call it yet.
     pub on_realloc_inplace: Option<mi_profiler_on_realloc_inplace_fun>,
 }
 

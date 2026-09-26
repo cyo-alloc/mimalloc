@@ -69,7 +69,7 @@ pub struct Heap {
 // mimalloc never deletes. A borrowed handle to any other heap could outlive
 // it, and its safe methods would then use freed memory.
 
-// SAFETY: mimalloc V3 heaps can be used from any thread at once, as the heap
+// SAFETY: mimalloc v3 heaps can be used from any thread at once, as the heap
 // section of `mimalloc.h` states. The handle holds nothing that is tied to
 // the thread that created it.
 unsafe impl Send for Heap {}

@@ -1,4 +1,4 @@
-//! [mimalloc](https://github.com/microsoft/mimalloc) V3 as a Rust global
+//! [mimalloc](https://github.com/microsoft/mimalloc) v3 as a Rust global
 //! allocator.
 //!
 //! To use mimalloc for every Rust allocation, declare it as the global

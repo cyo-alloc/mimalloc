@@ -1,6 +1,6 @@
 //! Build script for cyo-mimalloc-sys.
 //!
-//! Compiles mimalloc V3 into a static library with the `cc` crate. The build
+//! Compiles mimalloc v3 into a static library with the `cc` crate. The build
 //! environment configures it, as the `cyo-mimalloc` crate documentation
 //! describes.
 

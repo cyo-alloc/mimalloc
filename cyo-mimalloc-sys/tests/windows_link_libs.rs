@@ -60,7 +60,7 @@ fn every_win32_import_has_its_library_linked() {
     }
 }
 
-/// Checks that the scan still finds three calls that mimalloc has made since V1.
+/// Checks that the scan still finds three calls that mimalloc has made since v1.
 ///
 /// If upstream moves or renames the sources, or the scan stops recognising
 /// calls, the test above finds no calls and passes without checking anything.
