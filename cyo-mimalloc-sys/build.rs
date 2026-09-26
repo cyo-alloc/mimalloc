@@ -78,7 +78,6 @@ fn main() {
     // TLS model: initial-exec is fastest, but a shared library loaded with
     // `dlopen` needs local-dynamic. The value is still checked when building
     // for MSVC, which has no equivalent flag and would only warn about it.
-    // See: https://github.com/purpleprotocol/mimalloc_rust/issues/138
     println!("cargo:rerun-if-env-changed=CYO_MIMALLOC_TLS_MODEL");
     let tls_model = env::var("CYO_MIMALLOC_TLS_MODEL").unwrap_or_else(|_| "initial-exec".into());
     match tls_model.as_str() {
@@ -100,15 +99,13 @@ fn main() {
     build.flag_if_supported("-Wno-unused-function");
     build.flag_if_supported("-Wno-unused-parameter");
 
-    // ARM-specific: do NOT force ARMv8.1-A (fixes Raspberry Pi 4 compatibility)
-    // See: https://github.com/purpleprotocol/mimalloc_rust/issues/165
-    // We let the compiler use the target's default architecture level.
-    // If the user wants ARMv8.1-A optimizations, they can set RUSTFLAGS.
+    // ARM: no `-march` is passed, so the compiler uses the target's default
+    // architecture level. Forcing ARMv8.1-A would break older cores such as
+    // the Raspberry Pi 4's Cortex-A72.
 
     build.compile("mimalloc");
 
-    // ARMv6: needs libatomic for 64-bit atomic operations
-    // See: https://github.com/purpleprotocol/mimalloc_rust/pull/115
+    // ARMv6 has no native 64-bit atomics, so they come from libatomic.
     if target.needs_armv6_atomic() {
         println!("cargo:rustc-link-lib=atomic");
     }

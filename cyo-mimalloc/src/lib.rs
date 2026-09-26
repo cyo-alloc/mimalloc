@@ -237,7 +237,8 @@ mod tests {
 
     #[test]
     fn large_alignment_page_size() {
-        // Regression: mimalloc_rust#87 — 4096 alignment crashed
+        // Page-sized alignment has crashed allocators that skip the aligned
+        // mimalloc functions for alignments they assume are already met.
         let layout = Layout::from_size_align(4096, 4096).unwrap();
         for _ in 0..100 {
             unsafe {
