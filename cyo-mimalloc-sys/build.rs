@@ -42,6 +42,13 @@ fn main() {
     println!("cargo:rerun-if-changed=windows_link_libs.rs");
     println!("cargo:rerun-if-changed=c_src/mimalloc");
 
+    // docs.rs builds every target from a Linux host, where no MSVC compiler
+    // exists. rustdoc does not link, so the library is not needed there.
+    println!("cargo:rerun-if-env-changed=DOCS_RS");
+    if env::var_os("DOCS_RS").is_some() {
+        return;
+    }
+
     let mut build = cc::Build::new();
     build.file("c_src/mimalloc/src/static.c");
     build.include("c_src/mimalloc/include");
