@@ -6,7 +6,7 @@ name: Delete mimalloc update branch
 on:
   pull_request:
     types: [closed]
-    branches: [main]
+    branches: [master]
 
 permissions: {}
 
