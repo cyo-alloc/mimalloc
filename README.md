@@ -12,13 +12,13 @@ MI_DEFAULT_ALLOW_THP = "0"
 
 ## License
 
-The Rust code is licensed under the [Apache License 2.0](https://github.com/cyo-alloc/mimalloc/blob/main/LICENSE).
+The Rust code is licensed under the [Apache License 2.0](https://github.com/cyo-alloc/mimalloc/blob/master/LICENSE).
 The mimalloc sources bundled in `cyo-mimalloc-sys` are [MIT licensed](https://github.com/microsoft/mimalloc/blob/main/LICENSE).
 
 ## Attributions
 
 This is a fork of [rustfs-mimalloc](https://github.com/houseme/rustfs-mimalloc) by houseme, also licensed under Apache-2.0, with various changes. rustfs-mimalloc in turn drew on [mimalloc_rust](https://github.com/purpleprotocol/mimalloc_rust) by Octavian Oncescu (the `mimalloc` and `libmimalloc-sys` crates), and on the problems reported against it.
-Its MIT license is included as [LICENSE-mimalloc_rust](https://github.com/cyo-alloc/mimalloc/blob/main/LICENSE-mimalloc_rust).
+Its MIT license is included as [LICENSE-mimalloc_rust](https://github.com/cyo-alloc/mimalloc/blob/master/LICENSE-mimalloc_rust).
 
 ## LLM disclaimer
 
