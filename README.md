@@ -2,7 +2,7 @@
 
 ## Configuration without Cargo features
 
-We don't use cargo features, instead using build environment variables, so don't we have to think too much about all the features but can just pass things on to mimalloc as much as possible. You can set these in your project's `.cargo/config.toml`, for example:
+We don't use cargo features, instead using build environment variables, so we don't have to think too much about all the features but can just pass things on to mimalloc as much as possible. You can set these in your project's `.cargo/config.toml`, for example:
 
 ```toml
 [env]
