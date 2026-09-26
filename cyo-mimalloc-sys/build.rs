@@ -1,8 +1,8 @@
 //! Build script for cyo-mimalloc-sys.
 //!
-//! Compiles mimalloc V3 as a static library using the `cc` crate.
-//! Takes its configuration from the build environment; see the `cyo-mimalloc`
-//! crate documentation.
+//! Compiles mimalloc V3 into a static library with the `cc` crate. The build
+//! environment configures it, as the `cyo-mimalloc` crate documentation
+//! describes.
 
 use std::collections::BTreeSet;
 use std::env;
@@ -54,7 +54,6 @@ fn main() {
     build.include("c_src/mimalloc/include");
     build.include("c_src/mimalloc/src");
 
-    // Optimization flags
     if !is_debug {
         build.opt_level(3);
         build.define("NDEBUG", None);
@@ -92,8 +91,8 @@ fn main() {
         ),
     }
 
-    // Option defaults: `MI_DEFAULT_*`. The `MIMALLOC_*` environment variables
-    // still override them at runtime.
+    // The `MI_DEFAULT_*` variables set option defaults. The `MIMALLOC_*`
+    // environment variables still override them at run time.
     define_option_defaults(&mut build);
 
     build.flag_if_supported("-Wno-unused-function");
@@ -117,12 +116,16 @@ fn main() {
         println!("cargo:rustc-link-lib={lib}");
     }
 
-    // Export include directory for downstream crates
+    // Dependent crates find the headers through `DEP_MIMALLOC_INCLUDE`.
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     println!("cargo:include={manifest_dir}/c_src/mimalloc/include");
 }
 
-/// Read an integer from 0 to `max` from the build environment.
+/// Reads an integer from 0 to `max` from the build environment variable
+/// `name`.
+///
+/// Returns `None` if the variable is not set, and panics if its value is out
+/// of range.
 fn build_env_level(name: &str, max: u8) -> Option<u8> {
     println!("cargo:rerun-if-env-changed={name}");
     let value = env::var(name).ok()?;
@@ -132,8 +135,11 @@ fn build_env_level(name: &str, max: u8) -> Option<u8> {
     }
 }
 
-/// Pass every `MI_DEFAULT_*` macro that the vendored sources let us override
-/// (`#ifndef MI_DEFAULT_*`) through from the build environment.
+/// Passes each `MI_DEFAULT_*` variable of the build environment to the C
+/// compiler as a macro.
+///
+/// Only the macros that the vendored sources define with `#ifndef` are
+/// passed. The function warns about every other `MI_DEFAULT_*` variable.
 fn define_option_defaults(build: &mut cc::Build) {
     let mut known = BTreeSet::new();
     collect_default_macros(Path::new("c_src/mimalloc/src"), &mut known);

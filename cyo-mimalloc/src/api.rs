@@ -1,59 +1,84 @@
-//! Stats, options, version, and process information APIs.
+//! Statistics, options, the version and process information.
 
 use crate::MiMalloc;
 use core::ffi::{c_long, c_void};
 use core::fmt;
 use cyo_mimalloc_sys::mi_option_t;
 
-/// Mark the current thread as part of a thread pool for mimalloc.
+/// Tells mimalloc that the current thread is a worker of a thread pool.
 ///
-/// This is a safe wrapper around mimalloc V3's `mi_thread_set_in_threadpool`.
-/// The upstream API takes no pointers, only updates the current thread's
-/// mimalloc thread-local state, and is intended to be called by custom
-/// thread-pool worker threads. Repeated calls keep the same threadpool marker.
+/// mimalloc then does not move pages that other threads abandoned into this
+/// thread. Call it on each worker thread of a thread pool of your own.
+/// Calling it again has no further effect.
 #[inline]
 pub fn set_current_thread_in_threadpool() {
+    // SAFETY: `mi_thread_set_in_threadpool` has no preconditions.
     unsafe { cyo_mimalloc_sys::mi_thread_set_in_threadpool() }
 }
 
-/// Process memory information returned by [`MiMalloc::process_info`].
+/// The time and memory use of the process, from [`MiMalloc::process_info`].
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ProcessInfo {
+    /// The wall-clock time in milliseconds since the process started.
     pub elapsed_msecs: usize,
+    /// The CPU time in milliseconds that the process spent in user mode.
     pub user_msecs: usize,
+    /// The CPU time in milliseconds that the process spent in the kernel.
     pub system_msecs: usize,
+    /// The current resident set size in bytes.
+    ///
+    /// On Linux, mimalloc cannot read this value, and reports the memory it
+    /// has committed instead.
     pub current_rss: usize,
+    /// The largest resident set size in bytes that the process has had.
     pub peak_rss: usize,
+    /// The number of bytes that mimalloc has committed.
     pub current_commit: usize,
+    /// The largest number of bytes that mimalloc has had committed.
     pub peak_commit: usize,
+    /// The number of page faults that the process has had. On Linux, this is
+    /// the number of major faults.
     pub page_faults: usize,
 }
 
 impl MiMalloc {
-    /// mimalloc version as `major * 10000 + minor * 100 + patch`.
+    /// Returns the mimalloc version as `major * 10000 + minor * 100 + patch`,
+    /// for example 30503 for v3.5.3.
     #[inline]
     pub fn version() -> i32 {
+        // SAFETY: `mi_version` has no preconditions.
         unsafe { cyo_mimalloc_sys::mi_version() }
     }
 
-    /// Force garbage collection.
+    /// Returns memory that the current thread no longer uses.
+    ///
+    /// With `force`, mimalloc also purges unused memory immediately, instead
+    /// of after `mi_option_purge_delay`.
     #[inline]
     pub fn collect(force: bool) {
+        // SAFETY: `mi_collect` has no preconditions.
         unsafe { cyo_mimalloc_sys::mi_collect(force) }
     }
 
-    /// Usable size of an allocated block (may be larger than requested).
+    /// Returns the usable size in bytes of the block at `ptr`.
+    ///
+    /// The usable size can be larger than the size that was requested.
     ///
     /// # Safety
-    /// `ptr` must have been allocated by mimalloc.
+    ///
+    /// `ptr` must be a block that mimalloc allocated and that you have not
+    /// freed.
     #[inline]
     pub unsafe fn usable_size(ptr: *const u8) -> usize {
+        // SAFETY: the caller guarantees that `ptr` is a live mimalloc block.
         unsafe { cyo_mimalloc_sys::mi_usable_size(ptr as *const c_void) }
     }
 
-    /// Process memory information.
+    /// Returns the time and memory use of the process.
     pub fn process_info() -> ProcessInfo {
         let mut info = ProcessInfo::default();
+        // SAFETY: every argument points to a field of `info`, which is valid
+        // for writes.
         unsafe {
             cyo_mimalloc_sys::mi_process_info(
                 &mut info.elapsed_msecs,
@@ -71,10 +96,15 @@ impl MiMalloc {
 
     // ── Stats ───────────────────────────────────────────────────────────────
 
-    /// Write the allocation statistics to `out` as JSON.
+    /// Writes the allocation statistics to `out` as JSON.
     ///
-    /// Fails if mimalloc cannot produce the statistics or `out` fails.
+    /// # Errors
+    ///
+    /// Returns [`fmt::Error`] if mimalloc cannot produce the statistics, or if
+    /// `out` returns an error.
     pub fn stats_json(out: &mut (impl fmt::Write + ?Sized)) -> fmt::Result {
+        // SAFETY: with a null buffer, `mi_stats_get_json` returns a string
+        // that mimalloc allocated and that the caller owns, or null.
         unsafe {
             crate::ffi::write_owned_c_string(
                 out,
@@ -83,23 +113,35 @@ impl MiMalloc {
         }
     }
 
-    /// Write the allocation statistics to `out` in mimalloc's human-readable
-    /// text format.
+    /// Writes the allocation statistics to `out` as mimalloc's text table.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`fmt::Error`] if `out` returns an error.
     pub fn stats_print(out: &mut dyn fmt::Write) -> fmt::Result {
+        // SAFETY: `write_output` passes a callback and an argument that stay
+        // valid for the call.
         crate::ffi::write_output(out, |out, arg| unsafe {
             cyo_mimalloc_sys::mi_stats_print_out(out, arg);
         })
     }
 
-    /// Reset accumulated mimalloc allocation statistics.
+    /// Resets the allocation statistics to zero.
     #[inline]
     pub fn stats_reset() {
+        // SAFETY: `mi_stats_reset` has no preconditions.
         unsafe { cyo_mimalloc_sys::mi_stats_reset() }
     }
 
-    /// Write process memory information to `out` in mimalloc's human-readable
-    /// text format.
+    /// Writes the time and memory use of the process to `out` as mimalloc's
+    /// text table.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`fmt::Error`] if `out` returns an error.
     pub fn process_info_print(out: &mut dyn fmt::Write) -> fmt::Result {
+        // SAFETY: `write_output` passes a callback and an argument that stay
+        // valid for the call.
         crate::ffi::write_output(out, |out, arg| unsafe {
             cyo_mimalloc_sys::mi_process_info_print_out(out, arg);
         })
@@ -107,55 +149,65 @@ impl MiMalloc {
 
     // ── Options ─────────────────────────────────────────────────────────────
     //
-    // See the crate documentation for how options are set, and `mi_option_t`
-    // for what each one does and when mimalloc reads it.
+    // The crate documentation describes how options are set, and
+    // `mi_option_t` describes each option and when mimalloc reads it.
 
-    /// Check if an option is enabled (its value is non-zero).
+    /// Returns whether an option is enabled, which means its value is not 0.
     #[inline]
     pub fn option_is_enabled(option: mi_option_t) -> bool {
+        // SAFETY: `mi_option_is_enabled` has no preconditions.
         unsafe { cyo_mimalloc_sys::mi_option_is_enabled(option) }
     }
 
-    /// Get an option's current value. Options measured in KiB are returned in
-    /// KiB; use [`option_get_size`](Self::option_get_size) for bytes.
+    /// Returns the current value of an option.
+    ///
+    /// For an option measured in KiB, the value is in KiB. To get it in bytes,
+    /// call [`option_get_size`](Self::option_get_size).
     #[inline]
     pub fn option_get(option: mi_option_t) -> c_long {
+        // SAFETY: `mi_option_get` has no preconditions.
         unsafe { cyo_mimalloc_sys::mi_option_get(option) }
     }
 
-    /// Get an option's current value in bytes, for options measured in KiB.
+    /// Returns the current value in bytes of an option measured in KiB.
     #[inline]
     pub fn option_get_size(option: mi_option_t) -> usize {
+        // SAFETY: `mi_option_get_size` has no preconditions.
         unsafe { cyo_mimalloc_sys::mi_option_get_size(option) }
     }
 
-    /// Set an option, overriding both the build-time default and the
-    /// `MIMALLOC_*` environment variable. Options measured in KiB take KiB.
+    /// Sets an option to `value`. For an option measured in KiB, `value` is in
+    /// KiB.
     ///
-    /// This only has an effect if mimalloc reads the option again afterwards.
-    /// Options read at startup (see [`mi_option_t`]) are already fixed by the
-    /// time `main` runs; see the crate documentation for how to set those.
+    /// The value overrides the build-time default and the `MIMALLOC_*`
+    /// environment variable. It only has an effect if mimalloc reads the option
+    /// again afterwards. mimalloc reads some options only at startup, before
+    /// `main` runs. [`mi_option_t`] marks them, and the crate documentation
+    /// describes how to set them.
     ///
     /// ```rust
     /// use cyo_mimalloc::{MiMalloc, mi_option_t};
     ///
-    /// // Return memory to OS immediately
+    /// // Return unused memory to the OS immediately.
     /// MiMalloc::option_set(mi_option_t::mi_option_purge_delay, 0);
     /// ```
     #[inline]
     pub fn option_set(option: mi_option_t, value: c_long) {
+        // SAFETY: `mi_option_set` has no preconditions.
         unsafe { cyo_mimalloc_sys::mi_option_set(option, value) }
     }
 
-    /// Set an option to 1. The same caveats as [`option_set`](Self::option_set) apply.
+    /// Sets an option to 1, as [`option_set`](Self::option_set) does.
     #[inline]
     pub fn option_enable(option: mi_option_t) {
+        // SAFETY: `mi_option_enable` has no preconditions.
         unsafe { cyo_mimalloc_sys::mi_option_enable(option) }
     }
 
-    /// Set an option to 0. The same caveats as [`option_set`](Self::option_set) apply.
+    /// Sets an option to 0, as [`option_set`](Self::option_set) does.
     #[inline]
     pub fn option_disable(option: mi_option_t) {
+        // SAFETY: `mi_option_disable` has no preconditions.
         unsafe { cyo_mimalloc_sys::mi_option_disable(option) }
     }
 }

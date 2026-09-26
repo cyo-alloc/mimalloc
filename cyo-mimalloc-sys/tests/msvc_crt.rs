@@ -1,12 +1,13 @@
-//! The build script must leave the MSVC C runtime to Cargo.
+//! Checks that the build script leaves the choice of the MSVC C runtime to
+//! Cargo.
 //!
 //! With `static_crt` unset, `cc` passes `/MT` when the target feature
-//! `crt-static` is on and `/MD` when it is not, which is what makes
-//! `-C target-feature=+crt-static` produce a binary that needs neither
-//! `vcruntime140.dll` nor `ucrtbase.dll`. Choosing the flag here instead would
-//! pin every build to one runtime, and mixing the two runtimes in one binary
-//! is a link error. That would only show up in a Windows build of a dependent
-//! program, so this test reads the build script rather than compiling.
+//! `crt-static` is on, and `/MD` when it is off. That is how
+//! `-C target-feature=+crt-static` produces a binary that needs neither
+//! `vcruntime140.dll` nor `ucrtbase.dll`. If the build script chose the flag,
+//! every build would use one runtime, and mixing the two runtimes in one binary
+//! is a link error. Only a Windows build of a dependent program would show the
+//! error, so this test reads the build script instead of compiling.
 
 use std::fs;
 use std::path::Path;

@@ -1,6 +1,9 @@
 //! [mimalloc](https://github.com/microsoft/mimalloc) V3 as a Rust global
 //! allocator.
 //!
+//! To use mimalloc for every Rust allocation, declare it as the global
+//! allocator:
+//!
 //! ```rust
 //! use cyo_mimalloc::MiMalloc;
 //!
@@ -9,38 +12,41 @@
 //! ```
 //!
 //! The crate is `no_std` and does not use `alloc`. Functions that produce text,
-//! such as [`MiMalloc::stats_print`], write it to any [`core::fmt::Write`], so a
-//! `String` works, and so does a fixed buffer or a logger that allocates
+//! such as [`MiMalloc::stats_print`], write it to any [`core::fmt::Write`]. A
+//! `String` works, and so do a fixed buffer and a logger that allocates
 //! nothing.
 //!
-//! The global allocator only covers Rust allocations. C libraries linked into
-//! the same program (through `-sys` crates) keep calling the system `malloc`.
+//! The global allocator only covers Rust allocations. A C library linked into
+//! the same program, for example through a `-sys` crate, still calls the
+//! system `malloc`.
 //!
 //! # Build configuration
 //!
 //! This crate has no Cargo features. Cargo merges features across the whole
 //! dependency tree, so any library could switch on a mode that changes the
-//! allocator for the entire program. Instead, mimalloc is configured through
-//! environment variables of the build that produces the final binary (or
-//! shared library). Put them in that project's `.cargo/config.toml`, or in the
-//! environment of its Nix derivation or CI job; a dependency's own
-//! `.cargo/config.toml` is not used. Changing any of them rebuilds mimalloc.
+//! allocator for the entire program. Instead, you configure mimalloc through
+//! environment variables of the build that produces the final binary or shared
+//! library. Put them in that project's `.cargo/config.toml`, or in the
+//! environment of its Nix derivation or CI job. Cargo does not read the
+//! `.cargo/config.toml` of a dependency. Changing any of the variables rebuilds
+//! mimalloc.
 //!
 //! | Variable | Values | Effect |
 //! |---|---|---|
-//! | `MI_SECURE` | 0 to 4 (default 0) | Secure mode: guard pages, encoded free lists, randomized allocation and double-free detection, more of them at higher levels, at some cost in speed. |
+//! | `MI_SECURE` | 0 to 4 (default 0) | Secure mode. Higher levels add more protections, such as guard pages, encoded free lists, randomized allocation and double-free detection. Each protection costs some speed. |
 //! | `MI_DEBUG` | 0 to 3 (default 0) | Internal assertions (1), plus consistency checks (2), plus expensive checks (3). |
 //! | `MI_NO_THP` | 0 or 1 (default 0) | 1 compiles out mimalloc's requests for transparent huge pages. To decide at runtime instead, use the `allow_thp` option. |
-//! | `CYO_MIMALLOC_TLS_MODEL` | `initial-exec` (default), `local-dynamic`, `global-dynamic`, `local-exec` | How mimalloc finds its thread-local state. `initial-exec` is the fastest, but a shared library that is loaded with `dlopen` (such as a Python extension) needs `local-dynamic`. ELF targets only; ignored when building for MSVC. |
+//! | `CYO_MIMALLOC_TLS_MODEL` | `initial-exec` (default), `local-dynamic`, `global-dynamic`, `local-exec` | How mimalloc finds its thread-local state. `initial-exec` is the fastest. A shared library that is loaded with `dlopen`, such as a Python extension, needs `local-dynamic`. A build for MSVC checks the value but does not use it. |
 //! | `MI_DEFAULT_<NAME>` | see [Build-time defaults](#build-time-defaults) | The default value of a runtime option. |
 //!
-//! Invalid values stop the build with an error.
+//! An invalid value stops the build with an error.
 //!
-//! On MSVC, mimalloc is compiled with whichever C runtime the rest of the
-//! build uses: `/MT` under `-C target-feature=+crt-static` and `/MD`
+//! On MSVC, the build compiles mimalloc with the C runtime that the rest of the
+//! build uses. That is `/MT` under `-C target-feature=+crt-static`, and `/MD`
 //! otherwise. A statically linked program therefore needs neither
-//! `vcruntime140.dll` nor `ucrtbase.dll`, and no build variable of this
-//! crate selects the runtime — mixing the two in one binary is a link error.
+//! `vcruntime140.dll` nor `ucrtbase.dll`. No build variable of this crate
+//! selects the runtime, because mixing the two runtimes in one binary is a link
+//! error.
 //!
 //! ```toml
 //! # .cargo/config.toml of the application
@@ -49,11 +55,11 @@
 //! CYO_MIMALLOC_TLS_MODEL = "local-dynamic"
 //! ```
 //!
-//! A library that depends on this crate should leave all of this to the
-//! application, and should not declare a `#[global_allocator]` or call
-//! [`MiMalloc::option_set`] either: those affect the whole program. For memory
-//! of its own, it can use a [`heap::Heap`], optionally in an exclusive arena
-//! from [`heap::reserve_os_memory`].
+//! A library that depends on this crate should leave this configuration to the
+//! application. It should also not declare a `#[global_allocator]` or call
+//! [`MiMalloc::option_set`], because both affect the whole program. For memory
+//! of its own, a library can use a [`heap::Heap`], optionally in an exclusive
+//! arena from [`heap::reserve_os_memory`].
 //!
 //! # Options
 //!
@@ -67,8 +73,8 @@
 //! 3. an environment variable when your program runs;
 //! 4. a call from your code.
 //!
-//! So an application can ship its own defaults, and whoever runs it can still
-//! tune them.
+//! An application can therefore ship its own defaults, and whoever runs it can
+//! still change them.
 //!
 //! ## Build-time defaults
 //!
@@ -84,10 +90,11 @@
 //! ```
 //!
 //! Only the options whose [`mi_option_t`] entry names a `MI_DEFAULT_*`
-//! variable accept one, plus `MI_DEFAULT_PHYSICAL_MEMORY_IN_KIB`, the amount of
-//! physical memory mimalloc assumes until it has detected the real amount.
-//! Values are passed to the C compiler as they are, and sizes are in KiB. Any
-//! other `MI_DEFAULT_*` variable is ignored.
+//! variable accept one. The build also accepts
+//! `MI_DEFAULT_PHYSICAL_MEMORY_IN_KIB`, which sets the amount of physical memory
+//! that mimalloc assumes until it has detected the real amount. The build passes
+//! each value to the C compiler unchanged, and sizes are in KiB. The build
+//! ignores any other `MI_DEFAULT_*` variable, with a warning.
 //!
 //! ## Environment variables
 //!
@@ -99,9 +106,9 @@
 //!
 //! ## From code
 //!
-//! [`MiMalloc::option_set`] (with [`option_enable`](MiMalloc::option_enable)
-//! and [`option_disable`](MiMalloc::option_disable)) overrides everything
-//! else, but only from the moment it is called:
+//! [`MiMalloc::option_set`], [`option_enable`](MiMalloc::option_enable) and
+//! [`option_disable`](MiMalloc::option_disable) override every other source,
+//! from the moment you call them:
 //!
 //! ```rust
 //! use cyo_mimalloc::{MiMalloc, mi_option_t};
@@ -110,11 +117,11 @@
 //! MiMalloc::option_enable(mi_option_t::mi_option_purge_decommits);
 //! ```
 //!
-//! mimalloc starts before any Rust code does, including `main`. Options it only
-//! reads at startup are fixed by then, and setting them from code does nothing.
-//! [`mi_option_t`] marks those "read at startup". Use a build-time default or
-//! an environment variable for them, or the in-code equivalent where there is
-//! one:
+//! mimalloc starts before any Rust code runs, including `main`. The options that
+//! it only reads at startup are fixed by then, and setting them from code does
+//! nothing. [`mi_option_t`] marks them "read at startup". Set them with a
+//! build-time default or an environment variable, or call the function that
+//! does the same at run time, where there is one:
 //!
 //! | Option | In code |
 //! |---|---|
@@ -123,9 +130,14 @@
 //! | `allow_thp` = 0 | `prctl(PR_SET_THP_DISABLE, 1, 0, 0, 0)`, plus setting the option to 0 |
 //! | `use_numa_nodes`, `max_vabits`, `pagemap_commit`, `max_errors`, `max_warnings` | none |
 //!
-//! Options read "per thread" apply to threads that start after the change.
+//! An option that mimalloc reads "per thread" applies to the threads that
+//! start after you change it.
 
 #![no_std]
+#![warn(missing_docs)]
+#![warn(clippy::undocumented_unsafe_blocks)]
+#![warn(clippy::missing_errors_doc, clippy::missing_safety_doc)]
+#![cfg_attr(test, allow(clippy::undocumented_unsafe_blocks))]
 
 #[cfg(test)]
 extern crate std;
@@ -143,31 +155,41 @@ use core::ffi::c_void;
 
 /// The mimalloc global allocator.
 ///
-/// Drop-in replacement for the system allocator. Always uses `mi_malloc_aligned`
-/// internally to guarantee correct alignment for all layouts.
+/// Every allocation goes through an aligned mimalloc function, such as
+/// `mi_malloc_aligned`, so the block meets the alignment of its [`Layout`].
 #[derive(Debug, Clone, Copy, Default)]
 pub struct MiMalloc;
 
-// ── GlobalAlloc: hot path — zero indirection ────────────────────────────────
+// ── GlobalAlloc ─────────────────────────────────────────────────────────────
 
+// SAFETY: each method returns a block from mimalloc that meets the size and
+// alignment of `layout`, or null. mimalloc frees and resizes only blocks that
+// it allocated, and `GlobalAlloc` passes only those.
 unsafe impl GlobalAlloc for MiMalloc {
     #[inline(always)]
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        // SAFETY: `mi_malloc_aligned` has no preconditions. `Layout`
+        // guarantees that the alignment is a power of two.
         unsafe { cyo_mimalloc_sys::mi_malloc_aligned(layout.size(), layout.align()) as *mut u8 }
     }
 
     #[inline(always)]
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
+        // SAFETY: as in `alloc`.
         unsafe { cyo_mimalloc_sys::mi_zalloc_aligned(layout.size(), layout.align()) as *mut u8 }
     }
 
     #[inline(always)]
     unsafe fn dealloc(&self, ptr: *mut u8, _layout: Layout) {
+        // SAFETY: the caller of `dealloc` guarantees that `ptr` came from
+        // this allocator and is still allocated.
         unsafe { cyo_mimalloc_sys::mi_free(ptr as *mut c_void) };
     }
 
     #[inline(always)]
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
+        // SAFETY: the caller of `realloc` guarantees that `ptr` came from
+        // this allocator with `layout` and is still allocated.
         unsafe {
             cyo_mimalloc_sys::mi_realloc_aligned(ptr as *mut c_void, new_size, layout.align())
                 as *mut u8

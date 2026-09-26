@@ -3,24 +3,25 @@
 // Included by both `build.rs`, which emits the link directives, and
 // `tests/windows_link_libs.rs`, which checks the list against the sources.
 
-/// Import libraries to link when building for a Windows target.
+/// The import libraries to link when building for a Windows target.
 ///
-/// mimalloc does not declare these itself: the one `#pragma comment(lib, ..)`
-/// in `prim/windows/prim.c` sits in the `MI_USE_RTLGENRANDOM` branch we do not
-/// compile, and pragmas only work for MSVC anyway. Without them the final link
-/// of a binary using this crate fails with unresolved externals.
+/// mimalloc does not declare these itself. Its one `#pragma comment(lib, ..)`,
+/// in `prim/windows/prim.c`, is in the `MI_USE_RTLGENRANDOM` branch, which
+/// this crate does not compile. Only MSVC reads such a pragma in any case.
+/// Without these libraries, the final link of a binary that uses this crate
+/// fails with unresolved externals.
 #[allow(dead_code)]
 const WINDOWS_LINK_LIBS: &[&str] = &["advapi32"];
 
-/// Win32 functions the vendored sources call directly, and the import library
-/// each one lives in.
+/// Win32 functions that the vendored sources may call, each with the import
+/// library that contains it.
 ///
-/// Functions mimalloc resolves with `GetProcAddress` (`BCryptGenRandom` from
-/// bcrypt, `GetProcessMemoryInfo` from psapi, the NUMA and large-page entry
-/// points) need no import library and are deliberately absent. Everything here
-/// is checked against the sources by the test, so an upstream update that
-/// starts calling one of these directly fails the test until its library is
-/// added to `WINDOWS_LINK_LIBS`.
+/// A function that mimalloc resolves with `GetProcAddress` needs no import
+/// library, so `WINDOWS_LINK_LIBS` leaves its library out. Examples are
+/// `BCryptGenRandom` from bcrypt, `GetProcessMemoryInfo` from psapi, and some
+/// NUMA and large-page functions. The test checks each entry against the
+/// sources. If an upstream update starts to call one of these functions
+/// directly, the test fails until you add its library to `WINDOWS_LINK_LIBS`.
 #[allow(dead_code)]
 const WINDOWS_IMPORTS: &[(&str, &str)] = &[
     ("AdjustTokenPrivileges", "advapi32"),
@@ -41,7 +42,8 @@ const WINDOWS_IMPORTS: &[(&str, &str)] = &[
     ("MessageBoxW", "user32"),
 ];
 
-/// The libraries to link for `target_os`, empty everywhere but Windows.
+/// Returns the import libraries to link for `target_os`. The list is empty for
+/// every target except Windows.
 #[allow(dead_code)]
 fn windows_link_libs(target_os: &str) -> &'static [&'static str] {
     if target_os == "windows" {

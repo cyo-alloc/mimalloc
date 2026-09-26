@@ -1,10 +1,10 @@
-//! The Windows import libraries the build script links must cover every Win32
-//! function the vendored sources call directly.
+//! Checks that the build script links the import library of every Win32
+//! function that the vendored sources call directly.
 //!
-//! Missing one does not break the build of this crate — the static library
-//! compiles fine — but the final link of any binary using it fails on Windows
-//! with unresolved externals. These tests read the sources instead of linking,
-//! so they catch that from any host.
+//! A missing library does not break the build of this crate, because the static
+//! library still compiles. Instead, the final link of a binary that uses the
+//! crate fails on Windows with unresolved externals. These tests read the
+//! sources instead of linking, so they find the problem on any host.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -19,8 +19,11 @@ fn windows_prim_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("c_src/mimalloc/src/prim/windows")
 }
 
-/// The Windows primitive sources, with comments and string literals removed so
-/// that a name only passed to `GetProcAddress` does not read as a call.
+/// Returns the Windows platform sources of mimalloc, without comments and
+/// string literals.
+///
+/// A name that the sources only pass to `GetProcAddress` is in a string
+/// literal, so it does not count as a call.
 fn windows_sources() -> String {
     let dir = windows_prim_dir();
     let mut out = String::new();
@@ -33,7 +36,11 @@ fn windows_sources() -> String {
             out.push('\n');
         }
     }
-    assert!(!out.trim().is_empty(), "no sources found in {}", dir.display());
+    assert!(
+        !out.trim().is_empty(),
+        "no sources found in {}",
+        dir.display()
+    );
     out
 }
 
@@ -53,9 +60,10 @@ fn every_win32_import_has_its_library_linked() {
     }
 }
 
-/// Guards the test above against going vacuous: if upstream moves or renames
-/// the sources, or the scan stops recognising calls, the loop would quietly
-/// find nothing and pass. mimalloc has called these three since V1.
+/// Checks that the scan still finds three calls that mimalloc has made since V1.
+///
+/// If upstream moves or renames the sources, or the scan stops recognising
+/// calls, the test above finds no calls and passes without checking anything.
 #[test]
 fn the_large_page_imports_are_still_found() {
     let sources = windows_sources();
@@ -66,13 +74,14 @@ fn the_large_page_imports_are_still_found() {
     ] {
         assert!(
             calls(&sources, symbol),
-            "{symbol} no longer reads as a call in the Windows sources; the scan in this test \
-             has gone stale and no longer proves anything",
+            "{symbol} is no longer found as a call in the Windows sources; the scan in this \
+             test must be updated",
         );
     }
 }
 
-/// A name only reached through `GetProcAddress` is not an import.
+/// Checks that a name that mimalloc only reaches through `GetProcAddress` does
+/// not count as a call.
 #[test]
 fn dynamically_loaded_names_are_not_counted_as_calls() {
     let sources = windows_sources();

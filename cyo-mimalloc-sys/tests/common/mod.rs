@@ -1,7 +1,9 @@
 //! Helpers shared by the tests that read source files.
 
-/// Remove comments and string literals from C source, so that a name only
-/// passed to `GetProcAddress` does not read as a call.
+/// Removes comments and string literals from C source.
+///
+/// A name that the source only passes to `GetProcAddress` is in a string
+/// literal, so it no longer counts as a call.
 #[allow(dead_code)]
 pub fn strip_c_comments_and_strings(text: &str) -> String {
     let bytes = text.as_bytes();
@@ -39,9 +41,11 @@ pub fn strip_c_comments_and_strings(text: &str) -> String {
     out
 }
 
-/// Remove comments from Rust source, keeping string literals: the compiler
-/// flags the build script passes are strings. Single quotes are left alone,
-/// because in Rust they mostly start a lifetime, not a literal.
+/// Removes comments from Rust source, and keeps string literals.
+///
+/// The compiler flags that the build script passes are string literals. The
+/// function leaves single quotes alone, because in Rust a single quote usually
+/// starts a lifetime.
 #[allow(dead_code)]
 pub fn strip_rust_comments(text: &str) -> String {
     let bytes = text.as_bytes();
@@ -88,8 +92,10 @@ pub fn strip_rust_comments(text: &str) -> String {
     out
 }
 
-/// Whether `symbol` is called (or declared) in `text`, rather than appearing as
-/// part of a longer identifier such as the `PGetProcessMemoryInfo` typedef.
+/// Returns whether `text` calls or declares `symbol`.
+///
+/// A longer identifier that contains `symbol`, such as the
+/// `PGetProcessMemoryInfo` typedef, does not count.
 #[allow(dead_code)]
 pub fn calls(text: &str, symbol: &str) -> bool {
     text.match_indices(symbol).any(|(at, _)| {
