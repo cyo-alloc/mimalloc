@@ -17,6 +17,7 @@ build = "build.rs"
 include = [
     "Cargo.toml",
     "LICENSE",
+    "LICENSE-mimalloc_rust",
     "build.rs",
     "windows_link_libs.rs",
     "tests/**",
