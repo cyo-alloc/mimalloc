@@ -61,7 +61,8 @@ release.
 ## Origin
 
 This is a fork of [rustfs-mimalloc](https://github.com/houseme/rustfs-mimalloc)
-by houseme.
+by houseme, also licensed under Apache-2.0. The crates have been renamed, and
+most of the code has been changed or rewritten since.
 
 ## License
 
